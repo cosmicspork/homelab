@@ -1,0 +1,62 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: openclaw
+  namespace: openclaw
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: openclaw
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: openclaw
+    spec:
+      # OpenClaw runs as non-root user 'node' (uid 1000)
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      containers:
+        - name: openclaw
+          # Pin to a specific version tag in production
+          image: ghcr.io/openclaw/openclaw:latest
+          ports:
+            - containerPort: 18789
+          env:
+            # 'lan' binds to the container's network interface so the
+            # Service can route traffic to it. Adjust if the healthcheck fails.
+            - name: OPENCLAW_GATEWAY_BIND
+              value: lan
+            - name: OPENCLAW_GATEWAY_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: openclaw-secret
+                  key: gateway-token
+          volumeMounts:
+            - name: config
+              mountPath: /home/node/.openclaw
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 512Mi
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 18789
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 18789
+            initialDelaySeconds: 15
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: openclaw-config

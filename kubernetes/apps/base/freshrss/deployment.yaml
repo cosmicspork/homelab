@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: freshrss
+  namespace: freshrss
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: freshrss
+  # Recreate instead of RollingUpdate because the PVC is ReadWriteOnce —
+  # two pods can't mount the same block volume simultaneously.
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: freshrss
+    spec:
+      containers:
+        - name: freshrss
+          # Pin to a specific tag in production (e.g. freshrss/freshrss:1.24.0)
+          image: freshrss/freshrss:latest
+          ports:
+            - containerPort: 80
+          env:
+            - name: FRESHRSS_ENV
+              value: production
+            # Refresh all feeds every 30 minutes via internal cron
+            - name: CRON_MIN
+              value: "*/30"
+          volumeMounts:
+            - name: data
+              mountPath: /var/www/FreshRSS/data
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 10
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: freshrss-data

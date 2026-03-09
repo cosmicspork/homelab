@@ -1,0 +1,88 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: immich
+  namespace: immich
+spec:
+  interval: 30m
+  chart:
+    spec:
+      chart: immich
+      # Pin to a specific version in production. Check: https://github.com/immich-app/immich-charts/releases
+      version: ">=0.7.0 <1.0.0"
+      sourceRef:
+        kind: HelmRepository
+        name: immich
+        namespace: flux-system
+      interval: 12h
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      strategy: rollback
+      retries: 3
+  # Pull the DB password from the immich-postgres Secret rather than hardcoding it.
+  # Flux merges these into the Helm values before rendering the chart.
+  valuesFrom:
+    - kind: Secret
+      name: immich-postgres
+      valuesKey: password
+      targetPath: postgresql.global.postgresql.auth.password
+  values:
+    image:
+      # "release" always points to the latest stable Immich release.
+      # Pin to a specific version (e.g. v1.118.0) for reproducible deployments.
+      tag: release
+
+    immich:
+      persistence:
+        library:
+          # This PVC is defined in pvc.yaml — kept separate so it has
+          # the do-block-storage-retain class and won't be deleted on helm uninstall.
+          existingClaim: immich-library
+
+    server:
+      ingress:
+        main:
+          enabled: true
+          ingressClassName: nginx
+          annotations:
+            # Immich uploads can be large (videos). 0 = unlimited.
+            nginx.ingress.kubernetes.io/proxy-body-size: "0"
+            nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+          hosts:
+            - host: immich.0x69.xyz
+              paths:
+                - path: /
+                  pathType: Prefix
+          tls: []  # Add TLS here when you set up cert-manager
+
+    # The machine-learning service runs face recognition and CLIP search.
+    # It uses ~1-2GB RAM. Disabled here to fit in a 4GB node alongside other apps.
+    # Re-enable once you have more RAM or a dedicated node.
+    machine-learning:
+      enabled: false
+
+    postgresql:
+      enabled: true
+      global:
+        postgresql:
+          auth:
+            username: immich
+            database: immich
+            # password is injected via valuesFrom above
+      primary:
+        persistence:
+          size: 8Gi
+          storageClass: do-block-storage
+
+    redis:
+      enabled: true
+      architecture: standalone
+      auth:
+        enabled: false
+      master:
+        persistence:
+          enabled: false

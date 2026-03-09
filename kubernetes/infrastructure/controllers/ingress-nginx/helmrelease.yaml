@@ -1,0 +1,45 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: ingress-nginx
+  namespace: ingress-nginx
+spec:
+  interval: 30m
+  chart:
+    spec:
+      chart: ingress-nginx
+      # Pin to a specific version in production. Check: https://github.com/kubernetes/ingress-nginx/releases
+      version: ">=4.0.0 <5.0.0"
+      sourceRef:
+        kind: HelmRepository
+        name: ingress-nginx
+        namespace: flux-system
+      interval: 12h
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      strategy: rollback
+      retries: 3
+  values:
+    controller:
+      # DigitalOcean: type LoadBalancer automatically provisions a DO Load Balancer.
+      # This will be your single external IP for all ingress traffic.
+      service:
+        type: LoadBalancer
+        annotations:
+          service.beta.kubernetes.io/do-loadbalancer-name: "homelab-ingress"
+          # Optional: provision a DO load balancer with a specific size
+          # service.beta.kubernetes.io/do-loadbalancer-size-slug: "lb-small"
+      # Make nginx the default IngressClass so you don't have to specify it everywhere
+      ingressClassResource:
+        default: true
+      # Resource limits tuned for a single 4GB node
+      resources:
+        requests:
+          cpu: 100m
+          memory: 128Mi
+        limits:
+          memory: 256Mi
