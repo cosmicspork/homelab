@@ -3,5 +3,6 @@ kind: Kustomization
 resources:
   - namespace.yaml
   - pvc.yaml
+  - postgres-cluster.yaml
   - helmrepository.yaml
   - helmrelease.yaml

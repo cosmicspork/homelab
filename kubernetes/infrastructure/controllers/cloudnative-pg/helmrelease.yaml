@@ -1,0 +1,27 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: cloudnative-pg
+  # The operator installs cluster-wide CRDs and controllers.
+  # We install it into its own namespace.
+  namespace: cnpg-system
+spec:
+  interval: 30m
+  chart:
+    spec:
+      chart: cloudnative-pg
+      version: ">=0.20.0 <1.0.0"
+      sourceRef:
+        kind: HelmRepository
+        name: cloudnative-pg
+        namespace: flux-system
+      interval: 12h
+  install:
+    createNamespace: true
+    remediation:
+      retries: 3
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      strategy: rollback
+      retries: 3
