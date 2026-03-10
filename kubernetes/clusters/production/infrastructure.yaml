@@ -4,7 +4,7 @@ metadata:
   name: infrastructure
   namespace: flux-system
 spec:
-  interval: 10m
+  interval: 1h
   path: ./kubernetes/infrastructure/controllers
   prune: true
   sourceRef:

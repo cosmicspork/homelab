@@ -8,7 +8,7 @@ spec:
   # This ensures ingress-nginx exists before we try to create Ingress resources.
   dependsOn:
     - name: infrastructure
-  interval: 10m
+  interval: 1h
   path: ./kubernetes/apps/production
   prune: true
   sourceRef:
