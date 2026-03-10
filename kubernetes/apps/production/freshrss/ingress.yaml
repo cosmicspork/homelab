@@ -5,6 +5,7 @@ metadata:
   namespace: freshrss
   annotations:
     nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    cert-manager.io/cluster-issuer: letsencrypt-prod
 spec:
   ingressClassName: nginx
   rules:
@@ -18,4 +19,7 @@ spec:
                 name: freshrss
                 port:
                   number: 80
-  tls: []  # Add TLS here when you set up cert-manager
+  tls:
+    - hosts:
+        - rss.0x69.xyz
+      secretName: freshrss-tls

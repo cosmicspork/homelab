@@ -56,13 +56,17 @@ spec:
           annotations:
             nginx.ingress.kubernetes.io/proxy-body-size: "0"
             nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+            cert-manager.io/cluster-issuer: letsencrypt-prod
           hosts:
             - host: immich.0x69.xyz
               paths:
                 - path: "/"
                   service:
                     identifier: main
-          tls: []
+          tls:
+            - hosts:
+                - immich.0x69.xyz
+              secretName: immich-tls
 
     machine-learning:
       enabled: false

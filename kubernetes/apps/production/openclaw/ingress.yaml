@@ -4,11 +4,10 @@ metadata:
   name: openclaw
   namespace: openclaw
   annotations:
-    # OpenClaw uses websockets. Modern ingress-nginx handles the Upgrade/Connection
-    # headers automatically — no configuration-snippet needed.
     nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
     nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
     nginx.ingress.kubernetes.io/proxy-http-version: "1.1"
+    cert-manager.io/cluster-issuer: letsencrypt-prod
 spec:
   ingressClassName: nginx
   rules:
@@ -22,4 +21,7 @@ spec:
                 name: openclaw
                 port:
                   number: 18789
-  tls: []  # Add TLS here when you set up cert-manager
+  tls:
+    - hosts:
+        - ai.0x69.xyz
+      secretName: openclaw-tls

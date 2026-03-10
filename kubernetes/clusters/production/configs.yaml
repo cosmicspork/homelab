@@ -1,17 +1,18 @@
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
-  name: apps
+  name: configs
   namespace: flux-system
 spec:
-  # Apps won't be reconciled until infrastructure is healthy.
-  # This ensures ingress-nginx exists before we try to create Ingress resources.
+  # infrastructure must be Ready (cert-manager CRDs installed) before the
+  # ClusterIssuer resource can be applied.
   dependsOn:
     - name: infrastructure
-    - name: configs
   interval: 1h
-  path: ./kubernetes/apps/production
+  path: ./kubernetes/infrastructure/configs
   prune: true
   sourceRef:
     kind: GitRepository
     name: flux-system
+  wait: true
+  timeout: 2m
