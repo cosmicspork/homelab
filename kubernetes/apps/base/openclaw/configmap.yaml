@@ -10,7 +10,7 @@ data:
         "bind": "custom",
         "customBindHost": "0.0.0.0",
         "auth": {
-          "mode": "token"
+          "mode": "password"
         },
         "controlUi": {
           "allowedOrigins": ["https://ai.0x69.xyz"]

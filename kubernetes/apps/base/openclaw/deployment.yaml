@@ -30,11 +30,11 @@ spec:
             # resolves to 127.0.0.1 inside containers, breaking liveness probes.
             - name: OPENCLAW_CONFIG_PATH
               value: /etc/openclaw/openclaw.json
-            - name: OPENCLAW_GATEWAY_TOKEN
+            - name: OPENCLAW_GATEWAY_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: openclaw-secret
-                  key: gateway-token
+                  key: gateway-password
           volumeMounts:
             - name: config-file
               mountPath: /etc/openclaw
