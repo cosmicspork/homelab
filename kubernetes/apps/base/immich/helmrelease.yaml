@@ -38,7 +38,7 @@ spec:
               # Pin to a specific version tag in production (e.g. v1.120.0)
               tag: release
             env:
-              # CloudNativePG creates a '<cluster-name>-rw' service for the primary.
+              # CloudNativePG creates '<cluster-name>-rw' for the read-write primary.
               DB_HOSTNAME: "immich-postgres-rw.immich.svc.cluster.local"
               DB_DATABASE_NAME: immich
               DB_USERNAME: immich

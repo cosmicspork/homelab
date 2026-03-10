@@ -1,0 +1,12 @@
+# ImageCatalog bypasses CNPG's image tag version validation,
+# which rejects non-semver tags like "pg16-latest".
+# The operator trusts the declared 'major' version and doesn't parse the tag.
+apiVersion: postgresql.cnpg.io/v1
+kind: ImageCatalog
+metadata:
+  name: pgvecto-rs
+  namespace: immich
+spec:
+  images:
+    - major: 16
+      image: ghcr.io/tensorchord/cloudnative-pgvecto.rs:pg16-latest

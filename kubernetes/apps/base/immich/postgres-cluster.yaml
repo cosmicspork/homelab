@@ -6,9 +6,13 @@ metadata:
 spec:
   instances: 1
 
-  # Immich requires pgvecto.rs for vector similarity search.
-  # This TensorChord image is CloudNativePG-compatible with pgvecto.rs pre-installed.
-  imageName: ghcr.io/tensorchord/cloudnative-pgvecto.rs:pg16-latest
+  # Use imageCatalogRef instead of imageName to bypass CNPG's tag validation.
+  # The catalog declares the major version explicitly; the operator trusts it.
+  imageCatalogRef:
+    apiGroup: postgresql.cnpg.io
+    kind: ImageCatalog
+    name: pgvecto-rs
+    major: 16
 
   postgresql:
     shared_preload_libraries:
@@ -18,8 +22,8 @@ spec:
     initdb:
       database: immich
       owner: immich
-      # CloudNativePG reads 'username' and 'password' keys from this secret
-      # to create the initial DB user. We apply this secret imperatively.
+      # CloudNativePG reads 'username' and 'password' keys from this secret.
+      # Applied imperatively; see secret.yaml for the template.
       secret:
         name: immich-postgres
 

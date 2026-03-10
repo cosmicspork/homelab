@@ -3,6 +3,7 @@ kind: Kustomization
 resources:
   - namespace.yaml
   - pvc.yaml
+  - image-catalog.yaml
   - postgres-cluster.yaml
   - helmrepository.yaml
   - helmrelease.yaml
