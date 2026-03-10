@@ -8,6 +8,12 @@ data:
     {
       "gateway": {
         "bind": "custom",
-        "customBindHost": "0.0.0.0"
+        "customBindHost": "0.0.0.0",
+        "auth": {
+          "mode": "token"
+        },
+        "controlUi": {
+          "allowedOrigins": ["https://ai.0x69.xyz"]
+        }
       }
     }
