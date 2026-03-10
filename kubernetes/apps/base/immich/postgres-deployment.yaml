@@ -36,6 +36,10 @@ spec:
                   key: password
             - name: POSTGRES_INITDB_ARGS
               value: "--data-checksums"
+            # Block storage volumes have a lost+found dir from ext4 formatting.
+            # Postgres refuses to init in a non-empty directory, so use a subdir.
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
           volumeMounts:
             - name: data
               mountPath: /var/lib/postgresql/data
