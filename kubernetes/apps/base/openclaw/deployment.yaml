@@ -15,29 +15,31 @@ spec:
       labels:
         app: openclaw
     spec:
-      # OpenClaw runs as non-root user 'node' (uid 1000)
       securityContext:
         runAsUser: 1000
         runAsGroup: 1000
         fsGroup: 1000
       containers:
         - name: openclaw
-          # Pin to a specific version tag in production
           image: ghcr.io/openclaw/openclaw:latest
           ports:
             - containerPort: 18789
           env:
-            # 'lan' binds to the container's network interface so the
-            # Service can route traffic to it. Adjust if the healthcheck fails.
-            - name: OPENCLAW_GATEWAY_BIND
-              value: lan
+            # Point OpenClaw at our ConfigMap-backed config file so we can
+            # set bind: custom / customBindHost: 0.0.0.0. The 'lan' mode
+            # resolves to 127.0.0.1 inside containers, breaking liveness probes.
+            - name: OPENCLAW_CONFIG_PATH
+              value: /etc/openclaw/openclaw.json
             - name: OPENCLAW_GATEWAY_TOKEN
               valueFrom:
                 secretKeyRef:
                   name: openclaw-secret
                   key: gateway-token
           volumeMounts:
-            - name: config
+            - name: config-file
+              mountPath: /etc/openclaw
+              readOnly: true
+            - name: state
               mountPath: /home/node/.openclaw
           resources:
             requests:
@@ -57,6 +59,9 @@ spec:
               port: 18789
             initialDelaySeconds: 15
       volumes:
-        - name: config
+        - name: config-file
+          configMap:
+            name: openclaw-config
+        - name: state
           persistentVolumeClaim:
             claimName: openclaw-config

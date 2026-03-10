@@ -22,8 +22,6 @@ spec:
     remediation:
       strategy: rollback
       retries: 3
-  # Inject the DB password from the imperatively-applied secret.
-  # Flux merges this into the Helm values before rendering.
   valuesFrom:
     - kind: Secret
       name: immich-postgres
@@ -35,11 +33,10 @@ spec:
         containers:
           main:
             image:
-              # Pin to a specific version tag in production (e.g. v1.120.0)
               tag: release
             env:
-              # CloudNativePG creates '<cluster-name>-rw' for the read-write primary.
-              DB_HOSTNAME: "immich-postgres-rw.immich.svc.cluster.local"
+              # Service created by postgres-service.yaml
+              DB_HOSTNAME: "immich-postgres.immich.svc.cluster.local"
               DB_DATABASE_NAME: immich
               DB_USERNAME: immich
               # DB_PASSWORD injected via valuesFrom above
@@ -49,7 +46,6 @@ spec:
         library:
           existingClaim: immich-library
 
-    # Valkey replaces Redis as of chart 0.10.0
     valkey:
       enabled: true
 

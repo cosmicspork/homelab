@@ -6,9 +6,20 @@ metadata:
 spec:
   accessModes:
     - ReadWriteOnce
-  # do-block-storage-retain: like do-block-storage but volume is NOT deleted
-  # when the PVC is deleted. Safer for photo storage you care about.
   storageClassName: do-block-storage-retain
   resources:
     requests:
       storage: 50Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: immich-postgres-data
+  namespace: immich
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: do-block-storage-retain
+  resources:
+    requests:
+      storage: 10Gi

@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: immich-postgres
+  namespace: immich
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: immich-postgres
+  # Recreate: the PVC is ReadWriteOnce so only one pod can mount it at a time.
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: immich-postgres
+    spec:
+      containers:
+        - name: postgres
+          # Official Immich postgres image — includes vectorchord + pgvectors
+          # extensions that Immich requires. Use the image from the official
+          # Immich docker-compose release for the matching Immich version.
+          image: ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_USER
+              value: immich
+            - name: POSTGRES_DB
+              value: immich
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: immich-postgres
+                  key: password
+            - name: POSTGRES_INITDB_ARGS
+              value: "--data-checksums"
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 512Mi
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", "immich", "-d", "immich"]
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "immich", "-d", "immich"]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: immich-postgres-data
