@@ -1,0 +1,25 @@
+name: Flux Reconcile
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install doctl
+        uses: digitalocean/action-doctl@v2
+        with:
+          token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+
+      - name: Get kubeconfig
+        run: |
+          mkdir -p $HOME/.kube
+          doctl kubernetes cluster kubeconfig show homelab > $HOME/.kube/config
+
+      - name: Install Flux CLI
+        run: curl -s https://fluxcd.io/install.sh | sudo bash
+
+      - name: Reconcile
+        run: flux reconcile source git flux-system
