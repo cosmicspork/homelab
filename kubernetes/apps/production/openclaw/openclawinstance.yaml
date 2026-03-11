@@ -23,11 +23,48 @@ spec:
           allowedOrigins:
             - "https://ai.0x69.xyz"
 
+  autoUpdate:
+    enabled: true
+    checkInterval: 24h
+    backupBeforeUpdate: true
+    rollbackOnFailure: true
+
+  selfConfigure:
+    enabled: true
+    allowedActions:
+      - skills
+      - config
+      - envVars
+      - workspaceFiles
+
+  chromium:
+    enabled: true
+    resources:
+      requests:
+        cpu: 250m
+        memory: 512Mi
+      limits:
+        cpu: 1000m
+        memory: 2Gi
+
+  webTerminal:
+    enabled: true
+    readOnly: false
+
   security:
     networkPolicy:
       enabled: true
       allowedIngressNamespaces:
         - ingress-nginx
+
+  availability:
+    nodeSelector:
+      doks.digitalocean.com/node-pool: openclaw
+    tolerations:
+      - key: workload
+        operator: Equal
+        value: openclaw
+        effect: NoSchedule
 
   networking:
     ingress:
