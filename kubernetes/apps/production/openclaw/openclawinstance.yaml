@@ -1,0 +1,49 @@
+apiVersion: openclaw.rocks/v1alpha1
+kind: OpenClawInstance
+metadata:
+  name: openclaw
+  namespace: openclaw
+spec:
+  storage:
+    persistence:
+      enabled: true
+      storageClass: do-block-storage-retain
+      size: 5Gi
+
+  envFrom:
+    - secretRef:
+        name: openclaw-secret
+
+  config:
+    raw:
+      gateway:
+        auth:
+          mode: password
+        controlUi:
+          allowedOrigins:
+            - "https://ai.0x69.xyz"
+
+  security:
+    networkPolicy:
+      enabled: true
+      allowedIngressNamespaces:
+        - ingress-nginx
+
+  networking:
+    ingress:
+      enabled: true
+      className: nginx
+      annotations:
+        cert-manager.io/cluster-issuer: letsencrypt-prod
+        nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+        nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+        nginx.ingress.kubernetes.io/proxy-http-version: "1.1"
+      hosts:
+        - host: ai.0x69.xyz
+          paths:
+            - path: /
+              pathType: Prefix
+      tls:
+        - secretName: openclaw-tls
+          hosts:
+            - ai.0x69.xyz

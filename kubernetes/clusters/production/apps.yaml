@@ -9,6 +9,10 @@ spec:
   dependsOn:
     - name: infrastructure
     - name: configs
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age
   interval: 1h
   path: ./kubernetes/apps/production
   prune: true

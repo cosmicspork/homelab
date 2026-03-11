@@ -1,3 +1,3 @@
-# Unencrypted secret files — encrypt with SOPS before committing.
-# See: https://fluxcd.io/flux/guides/mozilla-sops/
-**/secret.yaml
+.DS_Store
+*.kubeconfig
+*.zip
