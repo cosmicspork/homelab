@@ -4,3 +4,4 @@ resources:
   - ../../base/openclaw
   - openclawinstance.yaml
   - secret.yaml
+  - basic-auth-secret.yaml
