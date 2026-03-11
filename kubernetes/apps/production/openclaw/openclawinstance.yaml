@@ -22,6 +22,18 @@ spec:
         controlUi:
           allowedOrigins:
             - "https://ai.0x69.xyz"
+      agents:
+        defaults:
+          model:
+            primary: "openrouter/anthropic/claude-sonnet-4-6"
+      channels:
+        whatsapp:
+          dmPolicy: "allowlist"
+          allowFrom:
+            - "+14028132356"
+            - "+14025419408"
+            - "+917738149662"
+          groupPolicy: "allowlist"
 
   autoUpdate:
     enabled: true
