@@ -20,16 +20,12 @@ GitOps-managed Kubernetes cluster running on DigitalOcean. Flux watches this rep
 |---|---|---|
 | Immich | `immich.0x69.xyz` | Helm chart (immich-charts), custom Postgres sidecar |
 | FreshRSS | `rss.0x69.xyz` | Raw Deployment + PVC |
-| OpenClaw | `ai.0x69.xyz` | OpenClaw Kubernetes Operator (`openclaw.rocks/v1alpha1`) |
 
 ### Immich
 Uses the official Helm chart with a self-managed Postgres deployment (`ghcr.io/immich-app/postgres`) that includes the `vectorchord` and `pgvectors` extensions Immich requires. Machine learning is disabled. Library data is on a 100Gi PVC. The Postgres image version should be kept in sync with the Immich app version — check the official Immich docker-compose release for the matching tag.
 
 ### FreshRSS
 Simple raw Deployment. Feeds refresh every 30 minutes via internal cron. No secrets.
-
-### OpenClaw
-Managed by the [OpenClaw Kubernetes Operator](https://github.com/OpenClaw-rocks/k8s-operator) (HelmRelease in `infrastructure/controllers/openclaw-operator`). The operator provisions the StatefulSet, Service, NetworkPolicy, and Ingress from a single `OpenClawInstance` CRD. Gateway auth uses password mode — password is in the SOPS-encrypted secret. To retrieve the password: `sops -d kubernetes/apps/production/openclaw/secret.yaml`.
 
 ## Repository structure
 
@@ -44,17 +40,14 @@ kubernetes/
     controllers/             # Cluster-wide operators and controllers
       ingress-nginx/
       cert-manager/
-      openclaw-operator/
     configs/                 # Cluster-wide config resources (ClusterIssuers, etc.)
   apps/
     base/                    # Environment-agnostic base manifests
       immich/
       freshrss/
-      openclaw/              # Just the Namespace; instance spec lives in production/
     production/              # Production overlays and environment-specific resources
       immich/
       freshrss/
-      openclaw/              # OpenClawInstance + encrypted secret
 ```
 
 Flux reconciliation order: `infrastructure` → `configs` → `apps` (enforced via `dependsOn`). Infrastructure has `wait: true` so all operators and CRDs are ready before apps are applied.
@@ -70,10 +63,10 @@ All `secret.yaml` files in this repo are encrypted with [SOPS](https://github.co
 ### Working with secrets
 ```bash
 # Decrypt and view
-sops -d kubernetes/apps/production/openclaw/secret.yaml
+sops -d kubernetes/apps/production/<app>/secret.yaml
 
 # Edit a secret (opens decrypted in $EDITOR, re-encrypts on save)
-sops kubernetes/apps/production/openclaw/secret.yaml
+sops kubernetes/apps/production/<app>/secret.yaml
 
 # Create a new secret — write plain YAML, then encrypt in place
 sops --encrypt --in-place kubernetes/apps/some-app/secret.yaml
@@ -120,7 +113,6 @@ If the cluster needs to be rebuilt from scratch:
 5. **Check rollout**:
    ```bash
    flux get all -A
-   kubectl get openclawinstances -A
    ```
 
 ### Notes on persistent data
