@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kanboard
+  namespace: kanboard
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kanboard
+  # Recreate instead of RollingUpdate because the PVC is ReadWriteOnce —
+  # two pods can't mount the same block volume simultaneously.
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: kanboard
+    spec:
+      containers:
+        - name: kanboard
+          image: kanboard/kanboard:v1.2.51
+          ports:
+            - containerPort: 80
+          env:
+            - name: PLUGIN_INSTALLER
+              value: "true"
+          volumeMounts:
+            - name: data
+              mountPath: /var/www/app/data
+            - name: plugins
+              mountPath: /var/www/app/plugins
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+          livenessProbe:
+            httpGet:
+              path: /healthcheck.php
+              port: 80
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /healthcheck.php
+              port: 80
+            initialDelaySeconds: 10
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: kanboard-data
+        - name: plugins
+          emptyDir: {}
