@@ -22,6 +22,9 @@ spec:
           image: kanboard/kanboard:v1.2.51
           ports:
             - containerPort: 80
+          env:
+            - name: PLUGIN_INSTALLER
+              value: "true"
           volumeMounts:
             - name: data
               mountPath: /var/www/app/data
@@ -35,13 +38,13 @@ spec:
               memory: 256Mi
           livenessProbe:
             httpGet:
-              path: /
+              path: /healthcheck.php
               port: 80
             initialDelaySeconds: 30
             periodSeconds: 30
           readinessProbe:
             httpGet:
-              path: /
+              path: /healthcheck.php
               port: 80
             initialDelaySeconds: 10
       volumes:
