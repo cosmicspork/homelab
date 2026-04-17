@@ -8,7 +8,7 @@ spec:
   chart:
     spec:
       chart: immich
-      version: ">=0.10.0 <1.0.0"
+      version: 0.11.1
       sourceRef:
         kind: HelmRepository
         name: immich
@@ -33,7 +33,8 @@ spec:
         containers:
           main:
             image:
-              tag: release
+              # renovate: image=ghcr.io/immich-app/immich-server
+              tag: v2.6.3
             env:
               # Service created by postgres-service.yaml
               DB_HOSTNAME: "immich-postgres.immich.svc.cluster.local"

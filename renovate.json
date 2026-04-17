@@ -1,0 +1,40 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":dependencyDashboard",
+    ":semanticCommits",
+    ":rebaseStalePrs"
+  ],
+  "flux": {
+    "fileMatch": ["(^|/)kubernetes/.+\\.ya?ml$"]
+  },
+  "helm-values": {
+    "fileMatch": ["(^|/)kubernetes/.+\\.ya?ml$"]
+  },
+  "kubernetes": {
+    "fileMatch": ["(^|/)kubernetes/.+\\.ya?ml$"]
+  },
+  "customManagers": [
+    {
+      "customType": "regex",
+      "fileMatch": ["(^|/)kubernetes/.+\\.ya?ml$"],
+      "matchStrings": [
+        "#\\s*renovate:\\s*image=(?<depName>\\S+)\\s+tag:\\s+\"?(?<currentValue>[^\"\\s]+)\"?"
+      ],
+      "datasourceTemplate": "docker"
+    }
+  ],
+  "packageRules": [
+    {
+      "matchManagers": ["flux"],
+      "matchPackageNames": ["immich"],
+      "groupName": "immich chart"
+    },
+    {
+      "matchDatasources": ["docker"],
+      "matchUpdateTypes": ["digest", "pinDigest"],
+      "enabled": false
+    }
+  ]
+}
