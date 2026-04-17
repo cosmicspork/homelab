@@ -6,6 +6,7 @@
     ":semanticCommits",
     ":rebaseStalePrs"
   ],
+  "prHourlyLimit": 4,
   "flux": {
     "fileMatch": ["(^|/)kubernetes/.+\\.ya?ml$"]
   },
