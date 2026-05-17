@@ -2,6 +2,8 @@
 
 GitOps-managed Kubernetes cluster running on DigitalOcean. Flux watches this repo's `main` branch and reconciles the cluster state continuously.
 
+> Personal homelab — published for reference, not maintained as a public project. No support, no warranty.
+
 ## Cluster overview
 
 | Component | Detail |
@@ -20,12 +22,16 @@ GitOps-managed Kubernetes cluster running on DigitalOcean. Flux watches this rep
 |---|---|---|
 | Immich | `immich.0x69.xyz` | Helm chart (immich-charts), custom Postgres sidecar |
 | FreshRSS | `rss.0x69.xyz` | Raw Deployment + PVC |
+| Kanboard | `kanban.0x69.xyz` | Raw Deployment + PVC (SQLite) |
 
 ### Immich
-Uses the official Helm chart with a self-managed Postgres deployment (`ghcr.io/immich-app/postgres`) that includes the `vectorchord` and `pgvectors` extensions Immich requires. Machine learning is disabled. Library data is on a 100Gi PVC. The Postgres image version should be kept in sync with the Immich app version — check the official Immich docker-compose release for the matching tag.
+Uses the official Helm chart with a self-managed Postgres deployment (`ghcr.io/immich-app/postgres`) that includes the Postgres extensions Immich requires. Machine learning is disabled. Library data is on a 100Gi PVC. The Postgres image version should be kept in sync with the Immich app version — check the official Immich docker-compose release for the matching tag.
 
 ### FreshRSS
-Simple raw Deployment. Feeds refresh every 30 minutes via internal cron. No secrets.
+Simple raw Deployment. Feeds refresh every 30 minutes via internal cron.
+
+### Kanboard
+Raw Deployment with a SQLite-backed PVC. Plugin installer is enabled; uses the Kanboard healthcheck endpoint for liveness/readiness.
 
 ## Repository structure
 
@@ -45,9 +51,14 @@ kubernetes/
     base/                    # Environment-agnostic base manifests
       immich/
       freshrss/
+      kanboard/
     production/              # Production overlays and environment-specific resources
       immich/
       freshrss/
+      kanboard/
+.github/workflows/           # CI: post-push Flux reconcile, scheduled Renovate
+.sops.yaml                   # SOPS rules — which files to encrypt, with which age key
+renovate.json                # Renovate config for dependency PRs
 ```
 
 Flux reconciliation order: `infrastructure` → `configs` → `apps` (enforced via `dependsOn`). Infrastructure has `wait: true` so all operators and CRDs are ready before apps are applied.
@@ -105,8 +116,7 @@ If the cluster needs to be rebuilt from scratch:
      --owner=cosmicspork \
      --repository=homelab \
      --branch=main \
-     --path=kubernetes/clusters/production \
-     --private
+     --path=kubernetes/clusters/production
    ```
    Flux will apply everything in order: infrastructure → configs → apps.
 
@@ -118,27 +128,15 @@ If the cluster needs to be rebuilt from scratch:
 ### Notes on persistent data
 The storage class `do-block-storage-retain` means DigitalOcean block volumes are **not deleted** when their PVC is deleted. On a full cluster rebuild the volumes will still exist in your DO account. To reattach them, recreate the PVs and PVCs with the matching volume IDs before Flux applies. If starting fresh, delete the old volumes in the DO console first to avoid orphaned billing.
 
-## Day-to-day operations
+## Adding things
 
-### Force Flux to reconcile now
-```bash
-flux reconcile kustomization flux-system --with-source
-flux reconcile kustomization apps
-```
-
-### Check Flux status
-```bash
-flux get kustomizations
-flux get helmreleases -A
-```
-
-### Add a new application
+### A new application
 1. Create `kubernetes/apps/base/<app>/` with namespace + base manifests and a `kustomization.yaml`.
 2. Create `kubernetes/apps/production/<app>/` with a `kustomization.yaml` referencing the base, plus any production-specific overlays (ingress, etc.).
 3. Add the app directory to `kubernetes/apps/production/kustomization.yaml`.
 4. If the app needs secrets, write a `secret.yaml` and run `sops --encrypt --in-place` before committing.
 
-### Add a new infrastructure controller
+### A new infrastructure controller
 1. Create `kubernetes/infrastructure/controllers/<name>/` with namespace, HelmRepository, HelmRelease, and `kustomization.yaml`.
 2. Add the directory to `kubernetes/infrastructure/controllers/kustomization.yaml`.
 
@@ -151,4 +149,3 @@ flux get helmreleases -A
 | `helm` | Chart inspection / manual operations |
 | `sops` | Encrypt/decrypt secrets |
 | `age` / `age-keygen` | Key generation (one-time setup) |
-| `gh` | GitHub CLI |
