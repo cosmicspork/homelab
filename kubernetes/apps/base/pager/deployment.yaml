@@ -1,0 +1,67 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pager
+  namespace: pager
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pager
+  # Recreate, not RollingUpdate: the subscription store is a single ReadWriteOnce
+  # volume, so two pods can't mount it at once.
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: pager
+    spec:
+      # The relay runs as nobody (65534); fsGroup makes the block volume writable
+      # so it can persist subscriptions to /data.
+      securityContext:
+        fsGroup: 65534
+      containers:
+        - name: pager
+          image: registry.digitalocean.com/cosmicspork/pager:0.1.0
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 4500
+          env:
+            # The bridge's Ed25519 public key — the only identity allowed to ingest.
+            - name: PAGER_BRIDGE_PUBKEY
+              value: "7dd6ae01525e09078a41e3e2f8926bd2599c661f89b48e710edb96b2deed645a"
+            # Persist subscriptions across restarts so devices stay registered.
+            - name: PAGER_SUBS_FILE
+              value: /data/subs.json
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: vapid
+              mountPath: /secrets
+              readOnly: true
+          resources:
+            requests:
+              cpu: 25m
+              memory: 32Mi
+            limits:
+              memory: 128Mi
+          readinessProbe:
+            httpGet:
+              path: /api/config
+              port: 4500
+            initialDelaySeconds: 3
+            periodSeconds: 20
+          livenessProbe:
+            httpGet:
+              path: /api/config
+              port: 4500
+            initialDelaySeconds: 10
+            periodSeconds: 30
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: pager-data
+        - name: vapid
+          secret:
+            secretName: pager-vapid
