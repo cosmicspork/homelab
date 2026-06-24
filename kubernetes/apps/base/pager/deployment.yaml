@@ -30,7 +30,7 @@ spec:
           env:
             # The bridge's Ed25519 public key — the only identity allowed to ingest.
             - name: PAGER_BRIDGE_PUBKEY
-              value: "7dd6ae01525e09078a41e3e2f8926bd2599c661f89b48e710edb96b2deed645a"
+              value: "f3797abfe2eefceb7c7588ee88f3ca31be858f48fd7d2919f2b169c8f41191bf"
             # Persist subscriptions across restarts so devices stay registered.
             - name: PAGER_SUBS_FILE
               value: /data/subs.json
