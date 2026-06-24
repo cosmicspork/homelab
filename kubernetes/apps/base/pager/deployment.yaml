@@ -34,6 +34,9 @@ spec:
             # Persist subscriptions across restarts so devices stay registered.
             - name: PAGER_SUBS_FILE
               value: /data/subs.json
+            # Surface relay info logs (startup, push results) in `kubectl logs`.
+            - name: RUST_LOG
+              value: info
           volumeMounts:
             - name: data
               mountPath: /data
