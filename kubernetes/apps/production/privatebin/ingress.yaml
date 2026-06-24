@@ -1,0 +1,25 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: privatebin
+  namespace: privatebin
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: paste.0x69.xyz
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: privatebin
+                port:
+                  number: 80
+  tls:
+    - hosts:
+        - paste.0x69.xyz
+      secretName: privatebin-tls

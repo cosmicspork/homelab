@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: privatebin
+  namespace: privatebin
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: privatebin
+  # Recreate instead of RollingUpdate because the PVC is ReadWriteOnce —
+  # two pods can't mount the same block volume simultaneously.
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: privatebin
+    spec:
+      # php-fpm drops to the nobody user (65534); fsGroup makes the mounted
+      # block volume group-writable so PrivateBin can persist pastes to /srv/data.
+      securityContext:
+        fsGroup: 65534
+      containers:
+        - name: privatebin
+          image: privatebin/nginx-fpm-alpine:2.0.4
+          ports:
+            - containerPort: 8080
+          volumeMounts:
+            - name: data
+              mountPath: /srv/data
+            - name: conf
+              mountPath: /srv/cfg/conf.php
+              subPath: conf.php
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 10
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: privatebin-data
+        - name: conf
+          configMap:
+            name: privatebin-conf

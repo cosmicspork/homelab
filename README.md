@@ -22,12 +22,16 @@ GitOps-managed Kubernetes cluster running on DigitalOcean. Flux watches this rep
 |---|---|---|
 | Immich | `immich.0x69.xyz` | Helm chart (immich-charts), custom Postgres sidecar |
 | FreshRSS | `rss.0x69.xyz` | Raw Deployment + PVC |
+| PrivateBin | `paste.0x69.xyz` | Raw Deployment + PVC + ConfigMap |
 
 ### Immich
 Uses the official Helm chart with a self-managed Postgres deployment (`ghcr.io/immich-app/postgres`) that includes the Postgres extensions Immich requires. Machine learning is disabled. Library data is on a 100Gi PVC. The Postgres image version should be kept in sync with the Immich app version — check the official Immich docker-compose release for the matching tag.
 
 ### FreshRSS
 Simple raw Deployment. Feeds refresh every 30 minutes via internal cron.
+
+### PrivateBin
+Zero-knowledge pastebin on the `nginx-fpm-alpine` image. Filesystem storage backend on a 2Gi PVC mounted at `/srv/data`; configuration is shipped as a `ConfigMap` mounted at `/srv/cfg/conf.php`. The pod sets `fsGroup: 65534` so the privilege-dropped php-fpm worker can write to the block volume.
 
 ## Repository structure
 
@@ -47,9 +51,11 @@ kubernetes/
     base/                    # Environment-agnostic base manifests
       immich/
       freshrss/
+      privatebin/
     production/              # Production overlays and environment-specific resources
       immich/
       freshrss/
+      privatebin/
 .github/workflows/           # CI: post-push Flux reconcile, scheduled Renovate
 .sops.yaml                   # SOPS rules — which files to encrypt, with which age key
 renovate.json                # Renovate config for dependency PRs
