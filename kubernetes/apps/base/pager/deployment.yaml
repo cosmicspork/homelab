@@ -23,7 +23,7 @@ spec:
         fsGroup: 65534
       containers:
         - name: pager
-          image: ghcr.io/cosmicspork/pager:0.2.0
+          image: ghcr.io/cosmicspork/pager:0.3.0
           imagePullPolicy: Always
           ports:
             - containerPort: 4500
