@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: svastha-relay
+  namespace: svastha
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: svastha-relay
+  # Recreate, not RollingUpdate: the blob store is a single ReadWriteOnce
+  # volume, so two pods can't mount it at once.
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: svastha-relay
+    spec:
+      # The relay runs as nobody (65534); fsGroup makes the block volume writable
+      # so it can persist blobs to /data.
+      securityContext:
+        fsGroup: 65534
+      containers:
+        - name: svastha-relay
+          image: ghcr.io/cosmicspork/svastha-relay:0.1.0
+          # Tags are version-pinned (no `latest`), so IfNotPresent is correct: it
+          # skips a redundant pull when the tag hasn't moved.
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          env:
+            # Surface relay info logs (startup, request results) in `kubectl logs`.
+            - name: RUST_LOG
+              value: info
+            # Baked into the image already; set explicitly so the manifest
+            # documents the contract.
+            - name: SVASTHA_RELAY_DATA_DIR
+              value: /data
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          resources:
+            requests:
+              cpu: 25m
+              memory: 32Mi
+            limits:
+              memory: 128Mi
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 3
+            periodSeconds: 20
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 30
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: svastha-relay-data

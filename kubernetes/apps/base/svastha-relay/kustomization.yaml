@@ -1,8 +1,7 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-  - immich
-  - freshrss
-  - privatebin
-  - pager
-  - svastha-relay
+  - namespace.yaml
+  - pvc.yaml
+  - deployment.yaml
+  - service.yaml
