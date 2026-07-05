@@ -1,0 +1,26 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: svastha-relay
+  namespace: svastha
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    # Sealed blobs run up to a few MB; nginx's 1m default would reject them.
+    nginx.ingress.kubernetes.io/proxy-body-size: "20m"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: svastha-relay.0x69.xyz
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: svastha-relay
+                port:
+                  number: 80
+  tls:
+    - hosts:
+        - svastha-relay.0x69.xyz
+      secretName: svastha-relay-tls
