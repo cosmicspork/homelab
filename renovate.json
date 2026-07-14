@@ -7,6 +7,9 @@
     ":rebaseStalePrs"
   ],
   "prHourlyLimit": 4,
+  "statusCheckNames": {
+    "minimumReleaseAge": null
+  },
   "flux": {
     "managerFilePatterns": [
       "/(^|/)kubernetes/.+\\.ya?ml$/"
