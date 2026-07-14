@@ -46,6 +46,13 @@
       "minimumReleaseAge": "3 days"
     },
     {
+      "description": "Own images: the cooldown guards against upstream churn, which doesn't apply to self-published releases",
+      "matchPackageNames": ["ghcr.io/cosmicspork/**"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "minimumReleaseAge": null,
+      "automerge": true
+    },
+    {
       "matchDatasources": ["docker"],
       "matchUpdateTypes": ["digest", "pinDigest"],
       "enabled": false
