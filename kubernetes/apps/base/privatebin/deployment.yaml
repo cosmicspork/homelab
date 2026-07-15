@@ -23,7 +23,7 @@ spec:
         fsGroup: 65534
       containers:
         - name: privatebin
-          image: privatebin/nginx-fpm-alpine:2.0.4
+          image: privatebin/nginx-fpm-alpine:2.0.5
           ports:
             - containerPort: 8080
           volumeMounts:
