@@ -23,7 +23,7 @@ spec:
         fsGroup: 65534
       containers:
         - name: svastha-relay
-          image: ghcr.io/cosmicspork/svastha-relay:0.7.0
+          image: ghcr.io/cosmicspork/svastha-relay:0.8.0
           # Tags are version-pinned (no `latest`), so IfNotPresent is correct: it
           # skips a redundant pull when the tag hasn't moved.
           imagePullPolicy: IfNotPresent
