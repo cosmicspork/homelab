@@ -1,0 +1,92 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: svastha-node
+  namespace: svastha-node
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: svastha-node
+  # Recreate, not RollingUpdate: the identity seed lives on a single
+  # ReadWriteOnce volume, so two pods can't mount it at once.
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: svastha-node
+    spec:
+      # The node is a trusted client, not a service: once granted it holds
+      # decrypted vault content in /cache, so it gets the tightest posture in
+      # the cluster — no inbound traffic (see the NetworkPolicy), no service
+      # account token, no writable rootfs, nothing running as root.
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        # Makes both the identity volume and the tmpfs cache writable by
+        # nobody (the image runs as 65534, same stance as the relay).
+        fsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: svastha-node
+          image: ghcr.io/cosmicspork/svastha-node:0.11.0
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          env:
+            - name: RUST_LOG
+              value: info
+            # The in-cluster relay service, not the public hostname: the node
+            # and relay share a cluster, so traffic never leaves it, and the
+            # egress NetworkPolicy can pin the destination to the relay pod.
+            - name: SVASTHA_RELAY_URL
+              value: http://svastha-relay.svastha.svc.cluster.local
+            # Baked into the image already; set explicitly so the manifest
+            # documents the contract.
+            - name: SVASTHA_NODE_DATA_DIR
+              value: /data
+            - name: SVASTHA_NODE_CACHE_DIR
+              value: /cache
+            # Shown in the svastha1: identity code when enrolling.
+            - name: SVASTHA_NODE_LABEL
+              value: Home node
+          # SVASTHA_NODE_INFERENCE_{ENDPOINT,MODEL,API_KEY} — the API key is
+          # the secret; endpoint and model ride along so all three inference
+          # knobs live in one place.
+          envFrom:
+            - secretRef:
+                name: svastha-node-inference
+          volumeMounts:
+            - name: identity
+              mountPath: /data
+            - name: cache
+              mountPath: /cache
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              # tmpfs pages in /cache are charged to this limit, so it must
+              # cover the process plus the cache sizeLimit below.
+              memory: 1Gi
+          # No probes: the bootstrap page binds loopback inside the container
+          # by design (never reachable from the kubelet), and the node holds
+          # no other port. A dead process exits; the restart policy is the
+          # health mechanism.
+      volumes:
+        - name: identity
+          persistentVolumeClaim:
+            claimName: svastha-node-identity
+        - name: cache
+          # Decrypted vault content, memory-backed so plaintext never touches
+          # a disk. Wiped on every restart; the node resyncs by design.
+          emptyDir:
+            medium: Memory
+            sizeLimit: 512Mi

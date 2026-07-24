@@ -6,3 +6,4 @@ resources:
   - privatebin
   - pager
   - svastha-relay
+  - svastha-node
