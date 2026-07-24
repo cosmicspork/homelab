@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: svastha-node-identity
+  namespace: svastha-node
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: do-block-storage-retain
+  resources:
+    requests:
+      # The node's only durable state is its identity seed (a few hundred
+      # bytes); 1Gi is the block-storage minimum. Losing it is recoverable —
+      # a fresh identity just has to be re-granted from the app — but retain
+      # anyway so a deleted PVC doesn't silently force that.
+      storage: 1Gi

@@ -1,0 +1,59 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: svastha-node
+  namespace: svastha-node
+spec:
+  podSelector:
+    matchLabels:
+      app: svastha-node
+  policyTypes:
+    - Ingress
+    - Egress
+  # No ingress rules: all inbound traffic is denied. The node needs none —
+  # even its bootstrap page binds loopback inside the container.
+  egress:
+    # Cluster DNS, needed to resolve the relay service and the inference
+    # endpoint.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # The relay, cross-namespace. The service maps 80 -> 8080; both are
+    # listed because whether policy sees the pre- or post-DNAT port is a CNI
+    # implementation detail.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: svastha
+          podSelector:
+            matchLabels:
+              app: svastha-relay
+      ports:
+        - protocol: TCP
+          port: 80
+        - protocol: TCP
+          port: 8080
+    # The inference endpoint: public HTTPS only. Serverless inference IPs
+    # aren't pinnable, so allow the internet on 443 but exclude private and
+    # link-local ranges — nothing inside the VPC or cluster is reachable
+    # through this rule.
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+              - 169.254.0.0/16
+      ports:
+        - protocol: TCP
+          port: 443
