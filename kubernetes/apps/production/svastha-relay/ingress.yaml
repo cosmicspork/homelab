@@ -7,6 +7,14 @@ metadata:
     cert-manager.io/cluster-issuer: letsencrypt-prod
     # Sealed blobs run up to a few MB; nginx's 1m default would reject them.
     nginx.ingress.kubernetes.io/proxy-body-size: "20m"
+    # `GET /v0/events` is a long-lived SSE stream that only heartbeats every
+    # ~30s. The controller's 60s default leaves no margin — one late heartbeat
+    # severs the stream and clients fall back to polling. Pinned rather than
+    # inherited so a controller-default change can't silently reintroduce it.
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    # Pokes must reach the client as they are written, not when a buffer fills.
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
 spec:
   ingressClassName: nginx
   rules:
