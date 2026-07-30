@@ -37,6 +37,17 @@ spec:
             # documents the contract.
             - name: SVASTHA_RELAY_DATA_DIR
               value: /data
+            # The paired PWA's origin. Makes the landing QR encode a device-link
+            # onboarding URL into the app rather than just this relay's address.
+            - name: SVASTHA_APP_URL
+              value: https://mysvastha.com
+          # SVASTHA_RELAY_VAPID_{PRIVATE,PUBLIC,SUBJECT} — Web Push. The relay
+          # refuses to start on a partial set, so all three travel together in
+          # one secret; without them /v0/push* answers 503 and the PWA reports
+          # that the relay offers no push.
+          envFrom:
+            - secretRef:
+                name: svastha-relay-vapid
           volumeMounts:
             - name: data
               mountPath: /data
