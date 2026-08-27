@@ -1,0 +1,34 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: tracon-hub
+  namespace: tracon
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    # A frame may be up to 4 MiB (a review's diff rides inside one); nginx's
+    # 1m default would reject it.
+    nginx.ingress.kubernetes.io/proxy-body-size: "20m"
+    # `GET /v0/events` is a long-lived SSE stream that heartbeats every 25s.
+    # The controller's 60s default leaves little margin; pinned so a
+    # controller-default change can't silently sever it.
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    # Pokes must reach the node as they are written, not when a buffer fills.
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: tracon-hub.0x69.xyz
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: tracon-hub
+                port:
+                  number: 80
+  tls:
+    - hosts:
+        - tracon-hub.0x69.xyz
+      secretName: tracon-hub-tls

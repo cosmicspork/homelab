@@ -1,0 +1,84 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tracon-hub
+  namespace: tracon
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tracon-hub
+  # Recreate, not RollingUpdate: the frame store is a single ReadWriteOnce
+  # volume, so two pods can't mount it at once.
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: tracon-hub
+    spec:
+      automountServiceAccountToken: false
+      # The hub runs as nobody (65534); fsGroup makes the block volume writable
+      # so it can persist frames and members to /data.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        fsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: tracon-hub
+          image: ghcr.io/cosmicspork/tracon-hub:0.2.0
+          # Tags are version-pinned (no `latest`), so IfNotPresent is correct: it
+          # skips a redundant pull when the tag hasn't moved.
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          ports:
+            - containerPort: 8080
+          env:
+            - name: RUST_LOG
+              value: hub=info,tower_http=info
+            # Baked into the image already; set explicitly so the manifest
+            # documents the contract.
+            - name: TRACON_HUB_DATA_DIR
+              value: /data
+            - name: TRACON_HUB_RETAIN_DAYS
+              value: "14"
+          # TRACON_HUB_ADMIT: the first node's id, admitted into @mesh at
+          # startup so something can connect at all. Every other node arrives
+          # by enrollment. Not secret in the cryptographic sense (it is a
+          # public key), but kept in a secret so the cluster config does not
+          # name machines.
+          envFrom:
+            - secretRef:
+                name: tracon-hub-admit
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          resources:
+            requests:
+              cpu: 25m
+              memory: 32Mi
+            limits:
+              memory: 128Mi
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 3
+            periodSeconds: 20
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 30
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: tracon-hub-data

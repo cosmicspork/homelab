@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: tracon-hub-data
+  namespace: tracon
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: do-block-storage-retain
+  resources:
+    requests:
+      storage: 5Gi
