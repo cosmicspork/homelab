@@ -29,7 +29,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: tracon-hub
-          image: ghcr.io/cosmicspork/tracon-hub:0.2.1
+          image: ghcr.io/cosmicspork/tracon-hub:0.3.0
           # Tags are version-pinned (no `latest`), so IfNotPresent is correct: it
           # skips a redundant pull when the tag hasn't moved.
           imagePullPolicy: IfNotPresent
