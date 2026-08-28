@@ -1,0 +1,24 @@
+# Exactly the verbs the node's `runtime` check asserts, and no more: it
+# creates, watches, attaches to, reads the logs of, and deletes its harness
+# pods, and reads the NetworkPolicy it verifies. It cannot edit that policy.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: tracon-node
+  name: tracon-node
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["create", "get", "list", "watch", "delete"]
+  # Attach is a GET that upgrades to a WebSocket, which the API server
+  # authorises as `get`; `create` covers the POST form. Both, or the node can
+  # create a harness it cannot talk to.
+  - apiGroups: [""]
+    resources: ["pods/attach"]
+    verbs: ["create", "get"]
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get"]
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["networkpolicies"]
+    verbs: ["get"]
