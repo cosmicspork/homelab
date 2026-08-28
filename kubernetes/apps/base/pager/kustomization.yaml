@@ -6,3 +6,7 @@ resources:
   - pvc.yaml
   - deployment.yaml
   - service.yaml
+  - bridge-pvc.yaml
+  - bridge-deployment.yaml
+  - bridge-service.yaml
+  - bridge-networkpolicy.yaml

@@ -1,0 +1,39 @@
+# How the phone reaches this node. The node is the only always-on one, so with
+# both laptops closed this is the path to the queue.
+#
+# There is no authentication here: the node's own guard does it. Off-loopback
+# callers must present the operator token (`tracon auth issue`) and get a
+# cookie back, and the SPA shell is deliberately public so the login screen
+# can render and a notification's deep link can open.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: tracon-node
+  namespace: tracon-node
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    # `GET /api/stream` is a long-lived SSE stream the interface lives on.
+    # The controller's 60s default would sever it every minute.
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    # Events must arrive as they are written, not when a buffer fills.
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    # A diff rides inside a review; nginx's 1m default would reject a large one.
+    nginx.ingress.kubernetes.io/proxy-body-size: "20m"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: tracon-node.0x69.xyz
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: tracon-node
+                port:
+                  number: 80
+  tls:
+    - hosts:
+        - tracon-node.0x69.xyz
+      secretName: tracon-node-tls
