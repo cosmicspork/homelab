@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: tracon-state
+  namespace: tracon-node
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: do-block-storage-retain
+  resources:
+    requests:
+      # Identity seed, channel keys, policy, the node database, worktrees,
+      # and the per-session subpaths every harness pod mounts. Retain: losing
+      # it means re-enrolling the node and redoing the credential import.
+      storage: 10Gi

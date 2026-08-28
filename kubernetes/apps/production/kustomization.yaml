@@ -8,3 +8,4 @@ resources:
   - svastha-relay
   - svastha-node
   - tracon-hub
+  - tracon-node

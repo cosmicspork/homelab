@@ -1,0 +1,12 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  namespace: tracon-node
+  name: tracon-node
+subjects:
+  - kind: ServiceAccount
+    name: tracon-node
+roleRef:
+  kind: Role
+  name: tracon-node
+  apiGroup: rbac.authorization.k8s.io

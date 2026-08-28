@@ -1,0 +1,28 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tracon-node
+  namespace: tracon-node
+data:
+  # Seeded onto the state volume on first start (see the init container);
+  # after that the file on the volume is authoritative, because `tracon
+  # enroll` writes to it. Edit it there, or delete it to reseed.
+  node.toml: |
+    node_name = "homelab"
+
+    [runtime]
+    kind = "kubernetes"
+
+    [gateway]
+    harness_listen = "0.0.0.0:7421"
+
+    [session]
+    worktree_root = "/state/work"
+
+    [consulta]
+    command = "uv"
+    args = ["run", "--project", "/opt/consulta", "consulta"]
+
+    [mesh]
+    # The hub shares this cluster; talk to it by service, not by the public name.
+    hub_url = "http://tracon-hub.tracon.svc.cluster.local"

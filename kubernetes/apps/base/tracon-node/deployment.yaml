@@ -1,0 +1,89 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tracon-node
+  namespace: tracon-node
+spec:
+  replicas: 1
+  # Recreate: the state claim is ReadWriteOnce.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      tracon.dev/role: node
+  template:
+    metadata:
+      labels:
+        tracon.dev/role: node
+    spec:
+      serviceAccountName: tracon-node
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        # Seed the config onto the volume once; the node writes to it later.
+        - name: seed-config
+          image: ghcr.io/cosmicspork/tracon-node:0.2.1
+          command: ["sh", "-c", "mkdir -p /state/config/tracon && [ -f /state/config/tracon/node.toml ] || cp /seed/node.toml /state/config/tracon/node.toml"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: state
+              mountPath: /state
+            - name: seed
+              mountPath: /seed
+              readOnly: true
+      containers:
+        - name: node
+          image: ghcr.io/cosmicspork/tracon-node:0.2.1
+          args: ["serve"]
+          env:
+            - name: XDG_CONFIG_HOME
+              value: /state/config
+            - name: XDG_STATE_HOME
+              value: /state
+            - name: HOME
+              value: /state/home
+            - name: RUST_LOG
+              value: tracon=info
+            - name: TRACON_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: TRACON_POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: TRACON_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          ports:
+            - name: forward
+              containerPort: 7421
+            - name: proxy
+              containerPort: 8888
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: state
+              mountPath: /state
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+      volumes:
+        - name: state
+          persistentVolumeClaim:
+            claimName: tracon-state
+        - name: seed
+          configMap:
+            name: tracon-node
