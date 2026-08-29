@@ -26,3 +26,11 @@ data:
     [mesh]
     # The hub shares this cluster; talk to it by service, not by the public name.
     hub_url = "http://tracon-hub.tracon.svc.cluster.local"
+
+    [notify]
+    # The bridge in this cluster, not the one on a laptop: this node is the one
+    # that is awake when the laptops are not. It holds the device keys and does
+    # the sealing; the node hands it cleartext over the pod network.
+    pager_url = "http://pager-bridge.pager.svc.cluster.local/capture"
+    # Where a notification's link should point, so tapping one opens the queue.
+    link_origin = "https://tracon-node.0x69.xyz"

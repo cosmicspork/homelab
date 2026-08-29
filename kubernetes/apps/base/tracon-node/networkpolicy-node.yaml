@@ -1,6 +1,10 @@
-# The node accepts only its harnesses, and only on the forward and proxy
-# ports. The operator reaches the interface through a port-forward (or the
-# Coder tunnel), which enters via the kubelet and is not subject to this.
+# The node accepts its harnesses on the forward and proxy ports, and the
+# ingress controller on the operator API. A port-forward (or the Coder tunnel)
+# enters via the kubelet and is not subject to this either way.
+#
+# Opening 7420 to the ingress is what lets the phone reach this node; the API
+# itself refuses anything off-loopback without the operator token, so the
+# policy and the node's own guard both have to be passed.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -21,3 +25,10 @@ spec:
           port: 7421
         - protocol: TCP
           port: 8888
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 7420

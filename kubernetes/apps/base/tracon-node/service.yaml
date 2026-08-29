@@ -1,0 +1,14 @@
+# The operator API, for the ingress to reach. Not the forward or proxy ports:
+# those are the harness's, and only harness pods may reach them.
+apiVersion: v1
+kind: Service
+metadata:
+  name: tracon-node
+  namespace: tracon-node
+spec:
+  selector:
+    tracon.dev/role: node
+  ports:
+    - name: http
+      port: 80
+      targetPort: 7420

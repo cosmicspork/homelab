@@ -10,3 +10,4 @@ resources:
   - networkpolicy-harness.yaml
   - networkpolicy-node.yaml
   - deployment.yaml
+  - service.yaml

@@ -27,7 +27,7 @@ spec:
       initContainers:
         # Seed the config onto the volume once; the node writes to it later.
         - name: seed-config
-          image: ghcr.io/cosmicspork/tracon-node:0.4.0
+          image: ghcr.io/cosmicspork/tracon-node:0.5.0
           command: ["sh", "-c", "mkdir -p /state/config/tracon && [ -f /state/config/tracon/node.toml ] || cp /seed/node.toml /state/config/tracon/node.toml"]
           securityContext:
             allowPrivilegeEscalation: false
@@ -41,7 +41,7 @@ spec:
               readOnly: true
       containers:
         - name: node
-          image: ghcr.io/cosmicspork/tracon-node:0.4.0
+          image: ghcr.io/cosmicspork/tracon-node:0.5.0
           args: ["serve"]
           env:
             - name: XDG_CONFIG_HOME
@@ -52,6 +52,11 @@ spec:
               value: /state/home
             - name: RUST_LOG
               value: tracon=info
+            # The operator API answers on the pod network so the ingress can
+            # reach it. Off-loopback callers need the operator token
+            # (`tracon auth issue`); loopback is unchanged.
+            - name: TRACON_LISTEN
+              value: 0.0.0.0:7420
             - name: TRACON_NAMESPACE
               valueFrom:
                 fieldRef:
@@ -65,6 +70,8 @@ spec:
                 fieldRef:
                   fieldPath: spec.nodeName
           ports:
+            - name: http
+              containerPort: 7420
             - name: forward
               containerPort: 7421
             - name: proxy
