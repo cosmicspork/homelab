@@ -28,16 +28,7 @@ spec:
           ports:
             - containerPort: 4500
           env:
-            # The bridge public keys allowed to ingest, comma-separated. Each
-            # bridge seals to its own paired devices, so authorizing a second
-            # sender does not let either read the other's traffic.
-            #
-            # The first is the laptop's. The cluster bridge's key is not here
-            # yet: it mints its identity on first start, so it has to be read
-            # off the running pod (`kubectl exec deploy/pager-bridge -n pager
-            # -- pager-bridge id`) and appended, comma-separated. Until then
-            # the cluster bridge gets 401 from the relay and nothing is lost
-            # but its own pushes.
+            # The bridge's Ed25519 public key — the only identity allowed to ingest.
             - name: PAGER_BRIDGE_PUBKEY
               value: "f3797abfe2eefceb7c7588ee88f3ca31be858f48fd7d2919f2b169c8f41191bf"
             # Persist subscriptions across restarts so devices stay registered.
