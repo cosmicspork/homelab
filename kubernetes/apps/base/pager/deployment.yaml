@@ -44,9 +44,12 @@ spec:
               mountPath: /secrets
               readOnly: true
           resources:
+            # Sized from measurement, not guesswork: over 16d this pod
+            # averaged ~0.1m CPU and peaked at 16Mi RSS. Requests are the
+            # scheduler reservation; the limit below is what actually caps it.
             requests:
-              cpu: 25m
-              memory: 32Mi
+              cpu: 5m
+              memory: 24Mi
             limits:
               memory: 128Mi
           readinessProbe:

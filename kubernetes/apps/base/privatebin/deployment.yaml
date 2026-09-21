@@ -33,9 +33,12 @@ spec:
               mountPath: /srv/cfg/conf.php
               subPath: conf.php
           resources:
+            # Sized from measurement, not guesswork: over 16d this pod
+            # averaged ~1m CPU and peaked at 37Mi RSS. Requests are the
+            # scheduler reservation; the limit below is what actually caps it.
             requests:
-              cpu: 50m
-              memory: 64Mi
+              cpu: 10m
+              memory: 48Mi
             limits:
               memory: 256Mi
           livenessProbe:
