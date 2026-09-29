@@ -1,8 +1,11 @@
-# The boundary. A harness pod accepts nothing and may reach only the node's
-# pod, on the forward (MCP) and proxy ports. No DNS, no API server, no
-# internet: everything else the harness needs goes through the node's
+# The boundary. A harness pod accepts only the node's pod, and may reach only
+# the node's pod, on the forward (MCP) and proxy ports. No DNS, no API server,
+# no internet: everything else the harness needs goes through the node's
 # allowlist proxy. The node verifies this policy's shape at startup and
 # refuses to run harnesses if it is missing or wider.
+#
+# The ingress is for OpenCode, which the node drives over HTTP on a port it
+# picks per launch, so no port is named; the peer is what is narrowed.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -13,7 +16,11 @@ spec:
     matchLabels:
       tracon.dev/role: harness
   policyTypes: ["Ingress", "Egress"]
-  ingress: []
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              tracon.dev/role: node
   egress:
     - to:
         - podSelector:
