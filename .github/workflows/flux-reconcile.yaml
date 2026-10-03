@@ -4,12 +4,17 @@ on:
   push:
     branches: [main]
 
+# Nothing here reads the repository; the cluster credentials come from the
+# DigitalOcean token.
+permissions: {}
+
 jobs:
   reconcile:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
       - name: Install doctl
-        uses: digitalocean/action-doctl@v2
+        uses: digitalocean/action-doctl@3cb3953159719656269e044e0e24ca16dd2a690f # v2
         with:
           token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
 

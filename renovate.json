@@ -4,7 +4,8 @@
     "config:recommended",
     ":dependencyDashboard",
     ":semanticCommits",
-    ":rebaseStalePrs"
+    ":rebaseStalePrs",
+    "helpers:pinGitHubActionDigests"
   ],
   "prHourlyLimit": 4,
   "flux": {
