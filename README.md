@@ -46,6 +46,7 @@ kubernetes/
     controllers/             # Cluster-wide operators and controllers
       ingress-nginx/
       cert-manager/
+      metrics-server/        # Resource Metrics API (kubectl top); HelmRelease lives in kube-system
     configs/                 # Cluster-wide config resources (ClusterIssuers, etc.)
   apps/
     base/                    # Environment-agnostic base manifests

@@ -24,3 +24,27 @@ spec:
       retries: 3
   values:
     installCRDs: true
+    # Sized for a handful of Certificates on one node. Observed working sets
+    # after a restart: controller ~35Mi, cainjector ~30Mi, webhook ~14Mi.
+    # Requests sit just above that; limits leave headroom for informer cache
+    # growth (the controller and cainjector watch Secrets cluster-wide).
+    resources:
+      requests:
+        cpu: 10m
+        memory: 64Mi
+      limits:
+        memory: 256Mi
+    cainjector:
+      resources:
+        requests:
+          cpu: 10m
+          memory: 64Mi
+        limits:
+          memory: 256Mi
+    webhook:
+      resources:
+        requests:
+          cpu: 10m
+          memory: 32Mi
+        limits:
+          memory: 128Mi

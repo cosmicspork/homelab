@@ -49,8 +49,41 @@ spec:
 
     valkey:
       enabled: true
+      # Valkey only holds Immich's BullMQ job queues (no persistence, no
+      # maxmemory set). Observed ~11Mi working set at idle; a large import can
+      # queue many jobs, so the limit leaves room for that without letting a
+      # runaway queue starve the node.
+      controllers:
+        main:
+          containers:
+            main:
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 32Mi
+                limits:
+                  memory: 256Mi
 
     server:
+      # Set here rather than under the top-level controllers.main, which the
+      # chart merges into every component (valkey included).
+      # Machine learning is disabled, so this container is the whole Immich
+      # app: API plus the microservices workers (thumbnails via libvips,
+      # video transcodes via ffmpeg). Observed ~680Mi working set at idle
+      # after a restart with a ~60GiB library; the request sits just above
+      # that. Thumbnailing and transcoding spike well past idle, so the limit
+      # is generous. No CPU limit, matching the rest of the repo; jobs burst
+      # onto idle cores.
+      controllers:
+        main:
+          containers:
+            main:
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 768Mi
+                limits:
+                  memory: 2Gi
       ingress:
         main:
           enabled: true
