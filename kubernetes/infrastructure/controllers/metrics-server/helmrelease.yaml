@@ -1,0 +1,49 @@
+# Installed into kube-system, unlike the other controllers: the chart runs it
+# at system-cluster-critical priority, and critical-priority pods may be
+# limited to namespaces with a matching ResourceQuota (Flux ships one for
+# flux-system for this reason). kube-system is always allowed and is where
+# metrics-server conventionally lives, so there is no namespace.yaml here.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: metrics-server
+  namespace: kube-system
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: metrics-server
+      version: 3.14.0
+      sourceRef:
+        kind: HelmRepository
+        name: metrics-server
+        namespace: flux-system
+      interval: 24h
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      strategy: rollback
+      retries: 3
+  values:
+    # Replaces the chart's defaultArgs (args would append, and a repeated
+    # string-slice flag concatenates). Only the address type changes: DOKS
+    # nodes are reached on their VPC InternalIP. Kubelet serving certs on
+    # DOKS are issued by the cluster CA through the kubelet-serving signer
+    # and include the InternalIP as a SAN, so TLS verification stays on (no
+    # --kubelet-insecure-tls).
+    defaultArgs:
+      - --cert-dir=/tmp
+      - --kubelet-preferred-address-types=InternalIP
+      - --kubelet-use-node-status-port
+      - --metric-resolution=15s
+    # The chart default (100m/200Mi) is sized for ~100 nodes; upstream
+    # guidance is roughly 1m CPU and 2MiB per node, plus a fixed base.
+    resources:
+      requests:
+        cpu: 10m
+        memory: 48Mi
+      limits:
+        memory: 128Mi
