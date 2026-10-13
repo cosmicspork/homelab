@@ -1,0 +1,98 @@
+# Default deny for the namespace; each pod below gets only what it needs.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny
+  namespace: tracon-build
+spec:
+  podSelector: {}
+  policyTypes: ["Ingress", "Egress"]
+---
+# buildkitd accepts gRPC only from the tracon node's pod (not its harness
+# pods) and the smoke test. Its egress is also the egress of every build
+# step: DNS, and the internet minus private, link-local (the DO metadata
+# service) and CGNAT ranges, on any port, since builds fetch over http (apt),
+# https and git. Everything internal seen on this cluster sits inside
+# 10.0.0.0/8: the node's pod range (10.117.0.0/25), service IPs
+# (10.116.32.x to 10.116.62.x) and the node's VPC address (10.116.0.2). With
+# Cilium's default CIDR matching, an ipBlock never selects cluster nodes or
+# pods, so the node's public address is not reachable through this rule
+# either.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: buildkitd
+  namespace: tracon-build
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: buildkitd
+  policyTypes: ["Ingress", "Egress"]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: tracon-node
+          podSelector:
+            matchLabels:
+              tracon.dev/role: node
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: buildkit-smoke
+      ports:
+        - protocol: TCP
+          port: 1234
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+              - 169.254.0.0/16
+              - 100.64.0.0/10
+---
+# The smoke test talks to buildkitd and nothing else.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: buildkit-smoke
+  namespace: tracon-build
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: buildkit-smoke
+  policyTypes: ["Ingress", "Egress"]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: buildkitd
+      ports:
+        - protocol: TCP
+          port: 1234

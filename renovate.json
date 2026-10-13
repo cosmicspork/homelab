@@ -54,6 +54,11 @@
       "automerge": true
     },
     {
+      "description": "BuildKit runs with Unconfined seccomp and AppArmor and must stay wire-compatible with the buildctl in the tracon-node image, so every bump gets a human review",
+      "matchPackageNames": ["moby/buildkit", "docker.io/moby/buildkit"],
+      "automerge": false
+    },
+    {
       "matchDatasources": ["docker"],
       "matchUpdateTypes": ["digest", "pinDigest"],
       "enabled": false

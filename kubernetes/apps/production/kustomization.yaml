@@ -9,3 +9,4 @@ resources:
   - svastha-node
   - tracon-hub
   - tracon-node
+  - tracon-build

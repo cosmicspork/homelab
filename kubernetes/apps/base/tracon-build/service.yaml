@@ -1,0 +1,15 @@
+# mTLS only; see configmap.yaml. Reachable from the tracon node pod and the
+# smoke test, per networkpolicy.yaml.
+apiVersion: v1
+kind: Service
+metadata:
+  name: buildkitd
+  namespace: tracon-build
+spec:
+  selector:
+    app.kubernetes.io/name: buildkitd
+  ports:
+    - name: grpc
+      port: 1234
+      targetPort: 1234
+      protocol: TCP
