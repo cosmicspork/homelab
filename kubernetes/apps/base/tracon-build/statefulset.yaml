@@ -1,0 +1,124 @@
+# Rootless BuildKit, after upstream's examples/kubernetes/statefulset.rootless.yaml.
+# The tracon node runs `buildctl` in its own container and talks to this over
+# mTLS on buildkitd.tracon-build.svc:1234, pushing to DOCR.
+#
+# Rootless mode runs build steps with the pod's network (BuildKit's rootless
+# network mode is always host), so this pod's NetworkPolicy egress is also the
+# egress of every RUN step.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: buildkitd
+  namespace: tracon-build
+spec:
+  serviceName: buildkitd
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: buildkitd
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: buildkitd
+    spec:
+      automountServiceAccountToken: false
+      # Builds in flight get a chance to finish on a rollout.
+      terminationGracePeriodSeconds: 120
+      securityContext:
+        # The image's user; changing it means rebuilding the image, since
+        # /etc/subuid maps 1000 to 100000-165535.
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        # Chown the cache volume only when its root does not already match.
+        # A recursive chown on every mount would rewrite the group of every
+        # file in every snapshot, which belong to mapped subuids and must
+        # keep their ownership.
+        fsGroupChangePolicy: OnRootMismatch
+      containers:
+        - name: buildkitd
+          image: moby/buildkit:v0.34.0-rootless
+          # The image's entrypoint is `rootlesskit buildkitd`. The wrapper
+          # records which certificates were loaded, because buildkitd reads
+          # them once at startup and never again; the liveness probe below
+          # restarts it when cert-manager renews them.
+          command:
+            - sh
+            - -c
+            - >-
+              sha256sum /certs/tls.crt /certs/ca.crt > "$TMPDIR/served-certs.sha256" &&
+              exec rootlesskit buildkitd
+              --config=/etc/buildkit/buildkitd.toml
+              --oci-worker-no-process-sandbox
+          # --oci-worker-no-process-sandbox: Kubernetes has no equivalent of
+          # Docker's systempaths=unconfined (procMount: Unmasked needs
+          # hostUsers: false), so build steps share buildkitd's PID namespace
+          # instead of getting their own /proc. Upstream's caveat: a build
+          # step can signal the daemon's processes. Acceptable for a single
+          # operator building their own repositories.
+          ports:
+            - name: grpc
+              containerPort: 1234
+          readinessProbe:
+            exec:
+              command: ["buildctl", "debug", "workers"]
+            initialDelaySeconds: 5
+            periodSeconds: 30
+            timeoutSeconds: 15
+          livenessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - sha256sum -c -s "$TMPDIR/served-certs.sha256" && buildctl debug workers >/dev/null
+            initialDelaySeconds: 30
+            periodSeconds: 60
+            timeoutSeconds: 15
+            failureThreshold: 3
+          securityContext:
+            # Build steps call unshare and mount in a user namespace, which
+            # RuntimeDefault seccomp and the containerd AppArmor profile
+            # refuse.
+            seccompProfile:
+              type: Unconfined
+            appArmorProfile:
+              type: Unconfined
+            # Left at the defaults on purpose: rootlesskit sets up the user
+            # namespace with the setuid newuidmap and newgidmap helpers, so
+            # privilege escalation must stay allowed and CAP_SETUID and
+            # CAP_SETGID must stay in the bounding set.
+          resources:
+            # Sized to fit beside everything else on today's single
+            # s-2vcpu-4gb node (about 260m CPU and 790Mi memory left
+            # unrequested once H1a lands). Real builds want 1 CPU / 2Gi
+            # requested and room to burst to about 6Gi, which needs a larger
+            # node; see the PR description. The low request also makes this
+            # the first pod evicted, and the kernel's preferred OOM victim,
+            # if a build exhausts the node.
+            requests:
+              cpu: 100m
+              memory: 512Mi
+            limits:
+              # Within the node's 3Gi allocatable, so a runaway build is
+              # killed inside this cgroup before it takes the node down.
+              memory: 2Gi
+          volumeMounts:
+            - name: cache
+              mountPath: /home/user/.local/share/buildkit
+            - name: config
+              mountPath: /etc/buildkit
+              readOnly: true
+            - name: certs
+              mountPath: /certs
+              readOnly: true
+      volumes:
+        - name: cache
+          persistentVolumeClaim:
+            claimName: buildkit-cache
+        - name: config
+          configMap:
+            name: buildkitd
+        - name: certs
+          secret:
+            secretName: buildkitd-server-tls

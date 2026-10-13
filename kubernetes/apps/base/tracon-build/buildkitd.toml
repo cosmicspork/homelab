@@ -1,0 +1,54 @@
+# Loaded by buildkitd via --config. Generated into a hash-suffixed ConfigMap
+# (kustomization.yaml), so editing this file rolls the pod.
+
+[grpc]
+  # The unix socket is for the probes inside the pod; TLS does not apply
+  # to it. Port 1234 is mTLS only: with a CA set, buildkitd requires and
+  # verifies a client certificate.
+  address = ["unix:///run/user/1000/buildkit/buildkitd.sock", "tcp://0.0.0.0:1234"]
+  [grpc.tls]
+    cert = "/certs/tls.crt"
+    key = "/certs/tls.key"
+    ca = "/certs/ca.crt"
+
+[worker.containerd]
+  enabled = false
+
+[worker.oci]
+  enabled = true
+  # Native overlayfs inside the user namespace: the DOKS node kernel is
+  # 6.12 (Debian 13), past the 5.11 that allows unprivileged overlay
+  # mounts. Named explicitly rather than "auto" so a kernel that refuses
+  # it fails loudly at startup instead of silently copying every layer.
+  #
+  # Fallback if buildkitd crash-loops on an overlay mount error: set this
+  # to "native" (slower, and each layer is a full copy, so the GC limits
+  # below matter more). fuse-overlayfs is not an option here: it needs
+  # /dev/fuse, which a pod only gets by being privileged.
+  snapshotter = "overlayfs"
+  # Two vCPUs on the node today.
+  max-parallelism = 2
+
+  # The cache volume is 100Gi; keep BuildKit under about 75GiB and at
+  # least 15GiB free. Mirrors BuildKit's default policy tiers, with more
+  # room for cache mounts (composer and npm caches) than the 512MB
+  # default.
+  gc = true
+  [[worker.oci.gcpolicy]]
+    filters = ["type==source.local", "type==exec.cachemount", "type==source.git.checkout"]
+    keepDuration = "168h"
+    maxUsedSpace = "10GB"
+  [[worker.oci.gcpolicy]]
+    keepDuration = "720h"
+    reservedSpace = "10GB"
+    maxUsedSpace = "75GB"
+    minFreeSpace = "15GB"
+  [[worker.oci.gcpolicy]]
+    reservedSpace = "10GB"
+    maxUsedSpace = "75GB"
+    minFreeSpace = "15GB"
+  [[worker.oci.gcpolicy]]
+    all = true
+    reservedSpace = "10GB"
+    maxUsedSpace = "75GB"
+    minFreeSpace = "15GB"
