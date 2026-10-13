@@ -1,8 +1,10 @@
 # Feasibility check for rootless BuildKit on the DOKS kernel. Runs once when
 # Flux applies it: connects over mTLS the way the tracon node will (a TLS
 # directory with cert-manager's file names), prints the worker (including the
-# snapshotter in use), then builds a Dockerfile with a RUN step, which
-# exercises the user namespace, runc and the snapshotter, without pushing.
+# snapshotter in use), checks that it can reach a registry token endpoint (the
+# client fetches Bearer tokens, see networkpolicy.yaml), then builds a
+# Dockerfile with a RUN step, which exercises the user namespace, runc and the
+# snapshotter, without pushing.
 #
 # Complete means rootless works here. The finished Job stays for inspection.
 # The force annotation lets Flux delete and recreate it when its spec changes
@@ -57,6 +59,15 @@ spec:
                 fi
                 sleep 10
               done
+              # The client, not buildkitd, fetches registry Bearer tokens, so
+              # this pod needs HTTPS to the token realm. Say so plainly if it
+              # cannot, rather than leave only a DeadlineExceeded from the build.
+              realm='https://auth.docker.io/token?service=registry.docker.io&scope=repository:library/busybox:pull'
+              if wget -q -T 15 -O /dev/null "$realm"; then
+                echo "client reaches the Docker Hub token endpoint"
+              else
+                echo "client cannot reach auth.docker.io:443; check the buildkit-smoke NetworkPolicy" >&2
+              fi
               buildctl --tlsdir /tls build \
                 --progress=plain \
                 --no-cache \

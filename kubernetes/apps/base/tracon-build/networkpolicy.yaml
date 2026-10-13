@@ -65,7 +65,12 @@ spec:
               - 169.254.0.0/16
               - 100.64.0.0/10
 ---
-# The smoke test talks to buildkitd and nothing else.
+# The smoke test talks to buildkitd, and to registry token endpoints over
+# HTTPS. BuildKit has the client fetch Bearer tokens: on a registry's 401
+# challenge, buildkitd asks the client's session for them, and buildctl calls
+# the realm (auth.docker.io for Docker Hub, api.digitalocean.com for DOCR)
+# itself, so credentials never leave the client. Any buildctl client needs
+# this egress; the tracon node pod has no egress policy, so it already does.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -96,3 +101,15 @@ spec:
       ports:
         - protocol: TCP
           port: 1234
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+              - 169.254.0.0/16
+              - 100.64.0.0/10
+      ports:
+        - protocol: TCP
+          port: 443
