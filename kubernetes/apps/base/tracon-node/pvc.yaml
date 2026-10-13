@@ -12,4 +12,7 @@ spec:
       # Identity seed, channel keys, policy, the node database, worktrees,
       # and the per-session subpaths every harness pod mounts. Retain: losing
       # it means re-enrolling the node and redoing the credential import.
-      storage: 10Gi
+      # Sized for repository clones and their dependency caches. The storage
+      # class allows expansion and DO volumes grow online, but never shrink:
+      # this number only goes up.
+      storage: 50Gi

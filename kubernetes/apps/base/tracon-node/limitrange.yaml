@@ -1,0 +1,28 @@
+# Defaults for containers that name no resources, which today is every
+# harness pod. The cluster is one s-2vcpu-4gb node (1900m CPU and about
+# 3Gi memory allocatable), and with the node pod at 250m/512Mi roughly
+# 250m CPU and 750Mi memory remain unrequested. A 100m/256Mi request lets
+# two sessions schedule side by side instead of one; a larger default would
+# leave the second Pending.
+#
+# The 2Gi memory limit is the point: without it a runaway test suite or
+# browser could take memory from everything else on the node. It is about
+# two thirds of the node, room for a Laravel test run plus a headless
+# browser. There is no default CPU limit, since throttling only slows a
+# session down and CPU is shared fairly by request anyway.
+#
+# A container that sets a memory request above 2Gi must also set its own
+# limit, or the API server rejects it (request above the defaulted limit).
+apiVersion: v1
+kind: LimitRange
+metadata:
+  namespace: tracon-node
+  name: tracon-node
+spec:
+  limits:
+    - type: Container
+      defaultRequest:
+        cpu: 100m
+        memory: 256Mi
+      default:
+        memory: 2Gi
