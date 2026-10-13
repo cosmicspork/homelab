@@ -13,6 +13,15 @@ data:
     [runtime]
     kind = "kubernetes"
 
+    # Builds repository images on buildkitd (tracon-build) and pushes them to
+    # DOCR. Needs a tracon release with the Kubernetes builder; uncomment then.
+    # The live file on the PVC is what the node reads, so edit it there too.
+    # [runtime.kubernetes.builder]
+    # addr = "tcp://buildkitd.tracon-build.svc:1234"
+    # tls_dir = "/etc/tracon/buildkit"
+    # registry = "registry.digitalocean.com/cosmicspork"
+    # docker_config = "/etc/tracon/registry"
+
     [gateway]
     harness_listen = "0.0.0.0:7421"
 

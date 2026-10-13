@@ -28,7 +28,7 @@ spec:
         # Seed the config onto the volume once; the node writes to it later.
         - name: seed-config
           image: ghcr.io/cosmicspork/tracon-node:0.32.0
-          command: ["sh", "-c", "mkdir -p /state/config/tracon && [ -f /state/config/tracon/node.toml ] || cp /seed/node.toml /state/config/tracon/node.toml"]
+          command: ["sh", "-c", "mkdir -p /state/config/tracon /state/tmp && [ -f /state/config/tracon/node.toml ] || cp /seed/node.toml /state/config/tracon/node.toml"]
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
@@ -52,6 +52,10 @@ spec:
               value: /state/home
             - name: RUST_LOG
               value: tracon=info
+            # Build contexts and image layers staged for buildctl can be large;
+            # keep them on the state volume, not the container's overlay.
+            - name: TMPDIR
+              value: /state/tmp
             # The operator API answers on the pod network so the ingress can
             # reach it. Off-loopback callers need the operator token
             # (`tracon auth issue`); loopback is unchanged.
@@ -83,6 +87,17 @@ spec:
           volumeMounts:
             - name: state
               mountPath: /state
+            # [runtime.kubernetes.builder] tls_dir: the client certificate for
+            # buildkitd's mutual TLS (cert-manager, buildkit-ca).
+            - name: buildkit-client
+              mountPath: /etc/tracon/buildkit
+              readOnly: true
+            # [runtime.kubernetes.builder] docker_config: config.json with the
+            # DOCR read-write credential. buildctl answers the daemon's token
+            # requests itself, so the credential stays in this pod.
+            - name: registry
+              mountPath: /etc/tracon/registry
+              readOnly: true
           # No CPU limit: throttling the node stalls every session it serves.
           # The memory limit stops a leak from taking the shared node down.
           resources:
@@ -98,3 +113,14 @@ spec:
         - name: seed
           configMap:
             name: tracon-node
+        - name: buildkit-client
+          secret:
+            secretName: buildkit-client-tls
+            defaultMode: 0440
+        - name: registry
+          secret:
+            secretName: tracon-docr
+            defaultMode: 0440
+            items:
+              - key: config.json
+                path: config.json
