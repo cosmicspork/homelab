@@ -8,6 +8,7 @@ resources:
   - rolebinding.yaml
   - pvc.yaml
   - configmap.yaml
+  - secret.yaml
   - networkpolicy-harness.yaml
   - networkpolicy-node.yaml
   - deployment.yaml
