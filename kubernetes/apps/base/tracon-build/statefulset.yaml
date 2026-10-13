@@ -89,20 +89,22 @@ spec:
             # privilege escalation must stay allowed and CAP_SETUID and
             # CAP_SETGID must stay in the bounding set.
           resources:
-            # Sized to fit beside everything else on today's single
-            # s-2vcpu-4gb node (about 260m CPU and 790Mi memory left
-            # unrequested once H1a lands). Real builds want 1 CPU / 2Gi
-            # requested and room to burst to about 6Gi, which needs a larger
-            # node; see the PR description. The low request also makes this
-            # the first pod evicted, and the kernel's preferred OOM victim,
-            # if a build exhausts the node.
+            # Sized to share one s-4vcpu-8gb node with the tracon node, its
+            # harness pods and the other apps (about 1.6 CPU / 2.2Gi already
+            # requested). The request guarantees a build half a core and the
+            # daemon plus a typical composer or npm step; with no CPU limit,
+            # builds still burst onto idle cores. Builds are batch work, so
+            # under contention they yield to interactive sessions rather
+            # than reserve capacity the sessions need.
             requests:
-              cpu: 100m
-              memory: 512Mi
+              cpu: 500m
+              memory: 1Gi
             limits:
-              # Within the node's 3Gi allocatable, so a runaway build is
-              # killed inside this cgroup before it takes the node down.
-              memory: 2Gi
+              # Enough for a Vite build or a Playwright browser install, and
+              # under half the node, so a runaway build is killed inside this
+              # cgroup instead of pushing harness sessions or immich into
+              # eviction.
+              memory: 3Gi
           volumeMounts:
             - name: cache
               mountPath: /home/user/.local/share/buildkit

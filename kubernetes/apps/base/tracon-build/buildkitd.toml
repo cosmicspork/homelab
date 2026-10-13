@@ -26,13 +26,16 @@
   # below matter more). fuse-overlayfs is not an option here: it needs
   # /dev/fuse, which a pod only gets by being privileged.
   snapshotter = "overlayfs"
-  # Two vCPUs on the node today.
+  # Half of the node's four vCPUs, so concurrent build steps leave room
+  # for harness sessions; it also bounds peak memory against the 3Gi limit.
   max-parallelism = 2
 
-  # The cache volume is 100Gi; keep BuildKit under about 75GiB and at
-  # least 15GiB free. Mirrors BuildKit's default policy tiers, with more
-  # room for cache mounts (composer and npm caches) than the 512MB
-  # default.
+  # The cache volume is 100Gi ($10/mo); keep BuildKit under about 75GiB and
+  # at least 15GiB free, so the volume never fills and never needs growing.
+  # A repository image like hounddogreading's is a few GiB, so this holds
+  # many base layers and rebuilds. Mirrors BuildKit's default policy tiers,
+  # with more room for cache mounts (composer and npm caches) than the
+  # 512MB default. Anything unused for 30 days goes first.
   gc = true
   [[worker.oci.gcpolicy]]
     filters = ["type==source.local", "type==exec.cachemount", "type==source.git.checkout"]
