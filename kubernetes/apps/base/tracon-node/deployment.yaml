@@ -83,10 +83,14 @@ spec:
           volumeMounts:
             - name: state
               mountPath: /state
+          # No CPU limit: throttling the node stalls every session it serves.
+          # The memory limit stops a leak from taking the shared node down.
           resources:
             requests:
-              cpu: 100m
-              memory: 256Mi
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              memory: 2Gi
       volumes:
         - name: state
           persistentVolumeClaim:

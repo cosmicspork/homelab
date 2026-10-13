@@ -1,6 +1,6 @@
-# Exactly the verbs the node's `runtime` check asserts, and no more: it
-# creates, watches, attaches to, reads the logs of, and deletes its harness
-# pods, and reads the NetworkPolicy it verifies. It cannot edit that policy.
+# Only what the node needs: it creates, watches, attaches to, reads the logs
+# of, and deletes its harness pods, reads the NetworkPolicy it verifies (it
+# cannot edit that policy), and manages the per-run Secrets described below.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
@@ -19,6 +19,18 @@ rules:
   - apiGroups: [""]
     resources: ["pods/log"]
     verbs: ["get"]
+  # A credential lent to a run reaches the harness pod through a Secret the
+  # node creates for that run and the pod reads by secretKeyRef, never as
+  # plaintext env in the pod spec. `patch` sets the Secret's owner reference
+  # to the pod once the pod exists, so the garbage collector removes it with
+  # the pod; `delete` removes it when the run ends; `get` and `list` let the
+  # node sweep leftovers after a restart. Without these rights the node
+  # refuses a run that carries a credential rather than inlining it.
+  # This also lets the node read every Secret in this namespace, including
+  # the ingress certificate, so keep unrelated Secrets out of it.
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["create", "get", "list", "delete", "patch"]
   - apiGroups: ["networking.k8s.io"]
     resources: ["networkpolicies"]
     verbs: ["get"]
