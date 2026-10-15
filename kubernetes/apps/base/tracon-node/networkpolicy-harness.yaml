@@ -1,8 +1,10 @@
 # The boundary. A harness pod accepts only the node's pod, and may reach only
-# the node's pod, on the forward (MCP) and proxy ports. No DNS, no API server,
-# no internet: everything else the harness needs goes through the node's
-# allowlist proxy. The node verifies this policy's shape at startup and
-# refuses to run harnesses if it is missing or wider.
+# the node's pod, on the forward (MCP), proxy and egress ports. No DNS, no API
+# server, no internet: everything else the harness needs goes through the
+# node's allowlist proxy, or through the per-client egress proxy on 7424 with
+# credentials the node issued to that one run. The node verifies this
+# policy's shape at startup and refuses to run harnesses if it is missing or
+# wider. Without 7424 it still runs, and issues no egress grants.
 #
 # The ingress is for OpenCode, which the node drives over HTTP on a port it
 # picks per launch, so no port is named; the peer is what is narrowed.
@@ -31,3 +33,5 @@ spec:
           port: 7421
         - protocol: TCP
           port: 8888
+        - protocol: TCP
+          port: 7424

@@ -1,4 +1,4 @@
-# The node accepts its harnesses on the forward and proxy ports, and the
+# The node accepts its harnesses on the forward, proxy and egress ports, and the
 # ingress controller on the operator API. A port-forward (or the Coder tunnel)
 # enters via the kubelet and is not subject to this either way.
 #
@@ -25,6 +25,8 @@ spec:
           port: 7421
         - protocol: TCP
           port: 8888
+        - protocol: TCP
+          port: 7424
     - from:
         - namespaceSelector:
             matchLabels:
