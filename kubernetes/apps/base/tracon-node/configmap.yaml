@@ -22,6 +22,12 @@ data:
     # registry = "registry.digitalocean.com/cosmicspork"
     # docker_config = "/etc/tracon/registry"
 
+    [runtime.kubernetes.resources.command]
+    # The default 2Gi request does not fit beside everything else on the one
+    # 8 GiB node; captured pods are pinned to it, so they are refused rather
+    # than left pending. The 4Gi limit still lets a test suite burst.
+    memory_request = "1Gi"
+
     [gateway]
     harness_listen = "0.0.0.0:7421"
 
