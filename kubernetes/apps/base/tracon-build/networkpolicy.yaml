@@ -17,7 +17,10 @@ spec:
 # (10.116.32.x to 10.116.62.x) and the node's VPC address (10.116.0.2). With
 # Cilium's default CIDR matching, an ipBlock never selects cluster nodes or
 # pods, so the node's public address is not reachable through this rule
-# either.
+# either. The one internal address it does reach is DOCR: inside the VPC,
+# DigitalOcean's resolver answers registry.digitalocean.com with the registry's
+# VPC endpoint (10.116.15.254, the top of the node VPC's /20) rather than its
+# public Cloudflare addresses, so pushing an image needs that /32 on 443.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -64,6 +67,12 @@ spec:
               - 192.168.0.0/16
               - 169.254.0.0/16
               - 100.64.0.0/10
+    - to:
+        - ipBlock:
+            cidr: 10.116.15.254/32
+      ports:
+        - protocol: TCP
+          port: 443
 ---
 # The smoke test talks to buildkitd, and to registry token endpoints over
 # HTTPS. BuildKit has the client fetch Bearer tokens: on a registry's 401
