@@ -94,7 +94,7 @@ spec:
             - name: state
               mountPath: /state
             # [runtime.kubernetes.builder] tls_dir: the client certificate for
-            # buildkitd's mutual TLS (cert-manager, buildkit-ca).
+            # buildkitd's mutual TLS (scripts/buildkit-pki.sh).
             - name: buildkit-client
               mountPath: /etc/tracon/buildkit
               readOnly: true
@@ -121,7 +121,7 @@ spec:
             name: tracon-node
         - name: buildkit-client
           secret:
-            secretName: buildkit-client-tls
+            secretName: buildkit-client-certs
             defaultMode: 0440
         - name: registry
           secret:

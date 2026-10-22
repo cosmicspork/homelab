@@ -1,5 +1,5 @@
-# mTLS only; see configmap.yaml. Reachable from the tracon node pod and the
-# smoke test, per networkpolicy.yaml.
+# mTLS only; see buildkitd.toml. Reachable from the tracon node pod only, per
+# networkpolicy.yaml.
 apiVersion: v1
 kind: Service
 metadata:

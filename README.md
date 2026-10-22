@@ -12,7 +12,7 @@ GitOps-managed Kubernetes cluster running on DigitalOcean. Flux watches this rep
 | Storage class | `do-block-storage-retain` (block volumes survive PVC deletion — manual cleanup required) |
 | Ingress | Cloudflare Tunnel (`cloudflared`, outbound only; no load balancer or public origin) |
 | Auth | Cloudflare Access on `rss`, `immich` and `tracon-node` |
-| TLS | Public: Cloudflare edge. Internal: cert-manager (tracon-build's buildkit mTLS) |
+| TLS | Public: Cloudflare edge. Internal: buildkit mTLS from `scripts/buildkit-pki.sh` |
 | GitOps | Flux v2 |
 | Secrets | SOPS + age |
 | Domain | `0x69.xyz` |
@@ -44,7 +44,6 @@ kubernetes/
     apps.yaml                # Flux Kustomization for apps/production
   infrastructure/
     controllers/             # Cluster-wide operators and controllers
-      cert-manager/          # Internal PKI only (tracon-build mTLS)
       metrics-server/        # Resource Metrics API (kubectl top); HelmRelease lives in kube-system
   apps/
     base/                    # Environment-agnostic base manifests
@@ -55,6 +54,8 @@ kubernetes/
       cloudflared/           # Tunnel config: public hostname -> Service
       immich/
       freshrss/
+scripts/
+  buildkit-pki.sh            # Issues tracon-build's mTLS certificates as SOPS secrets
 .github/workflows/           # CI: post-push Flux reconcile, scheduled Renovate
 .sops.yaml                   # SOPS rules — which files to encrypt, with which age key
 renovate.json                # Renovate config for dependency PRs
@@ -83,6 +84,9 @@ sops --encrypt --in-place kubernetes/apps/some-app/secret.yaml
 ```
 
 The `.sops.yaml` at the repo root configures SOPS to automatically use the age key for any file matching `kubernetes/.*secret\.yaml$`.
+
+### buildkit mTLS certificates
+`scripts/buildkit-pki.sh` issues a private CA, buildkitd's server certificate and the tracon node's client certificate, writes them as `buildkitd-certs-secret.yaml` (tracon-build) and `buildkit-client-certs-secret.yaml` (tracon-node), and discards the CA key, so nothing can mint another certificate. Each Secret's `homelab/expires` annotation records the expiry (five years). To rotate, or to replace a leaked key, run the script again and commit both files; buildkitd restarts on its own once Flux applies them.
 
 ### Flux decryption
 The age private key is loaded into the cluster as a secret that Flux uses to decrypt at apply time:

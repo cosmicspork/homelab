@@ -2,12 +2,11 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - namespace.yaml
-  - pki.yaml
+  - buildkitd-certs-secret.yaml
   - pvc.yaml
   - networkpolicy.yaml
   - statefulset.yaml
   - service.yaml
-  - job-smoke.yaml
 # Hash-suffixed, so a config change (such as the native-snapshotter fallback)
 # rolls buildkitd on the next reconcile.
 configMapGenerator:

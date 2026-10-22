@@ -9,6 +9,7 @@ resources:
   - pvc.yaml
   - configmap.yaml
   - secret.yaml
+  - buildkit-client-certs-secret.yaml
   - networkpolicy-harness.yaml
   - networkpolicy-node.yaml
   - deployment.yaml
