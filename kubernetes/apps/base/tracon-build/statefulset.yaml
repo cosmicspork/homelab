@@ -42,7 +42,7 @@ spec:
           # The image's entrypoint is `rootlesskit buildkitd`. The wrapper
           # records which certificates were loaded, because buildkitd reads
           # them once at startup and never again; the liveness probe below
-          # restarts it when cert-manager renews them.
+          # restarts it when scripts/buildkit-pki.sh reissues them.
           command:
             - sh
             - -c
@@ -123,4 +123,4 @@ spec:
             name: buildkitd
         - name: certs
           secret:
-            secretName: buildkitd-server-tls
+            secretName: buildkitd-certs

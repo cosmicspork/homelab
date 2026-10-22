@@ -56,7 +56,7 @@ spec:
             # keep them on the state volume, not the container's overlay.
             - name: TMPDIR
               value: /state/tmp
-            # The operator API answers on the pod network so the ingress can
+            # The operator API answers on the pod network so cloudflared can
             # reach it. Off-loopback callers need the operator token
             # (`tracon auth issue`); loopback is unchanged.
             - name: TRACON_LISTEN
@@ -94,7 +94,7 @@ spec:
             - name: state
               mountPath: /state
             # [runtime.kubernetes.builder] tls_dir: the client certificate for
-            # buildkitd's mutual TLS (cert-manager, buildkit-ca).
+            # buildkitd's mutual TLS (scripts/buildkit-pki.sh).
             - name: buildkit-client
               mountPath: /etc/tracon/buildkit
               readOnly: true
@@ -121,7 +121,7 @@ spec:
             name: tracon-node
         - name: buildkit-client
           secret:
-            secretName: buildkit-client-tls
+            secretName: buildkit-client-certs
             defaultMode: 0440
         - name: registry
           secret:

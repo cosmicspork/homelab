@@ -84,23 +84,11 @@ spec:
                   memory: 768Mi
                 limits:
                   memory: 2Gi
+      # Public traffic arrives through cloudflared, which routes to the
+      # immich-server Service directly.
       ingress:
         main:
-          enabled: true
-          annotations:
-            nginx.ingress.kubernetes.io/proxy-body-size: "0"
-            nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
-            cert-manager.io/cluster-issuer: letsencrypt-prod
-          hosts:
-            - host: immich.0x69.xyz
-              paths:
-                - path: "/"
-                  service:
-                    identifier: main
-          tls:
-            - hosts:
-                - immich.0x69.xyz
-              secretName: immich-tls
+          enabled: false
 
     machine-learning:
       enabled: false

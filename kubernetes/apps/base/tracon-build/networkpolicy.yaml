@@ -9,7 +9,7 @@ spec:
   policyTypes: ["Ingress", "Egress"]
 ---
 # buildkitd accepts gRPC only from the tracon node's pod (not its harness
-# pods) and the smoke test. Its egress is also the egress of every build
+# pods). Its egress is also the egress of every build
 # step: DNS, and the internet minus private, link-local (the DO metadata
 # service) and CGNAT ranges, on any port, since builds fetch over http (apt),
 # https and git. Everything internal seen on this cluster sits inside
@@ -39,9 +39,6 @@ spec:
           podSelector:
             matchLabels:
               tracon.dev/role: node
-        - podSelector:
-            matchLabels:
-              app.kubernetes.io/name: buildkit-smoke
       ports:
         - protocol: TCP
           port: 1234
@@ -70,55 +67,6 @@ spec:
     - to:
         - ipBlock:
             cidr: 10.116.15.254/32
-      ports:
-        - protocol: TCP
-          port: 443
----
-# The smoke test talks to buildkitd, and to registry token endpoints over
-# HTTPS. BuildKit has the client fetch Bearer tokens: on a registry's 401
-# challenge, buildkitd asks the client's session for them, and buildctl calls
-# the realm (auth.docker.io for Docker Hub, api.digitalocean.com for DOCR)
-# itself, so credentials never leave the client. Any buildctl client needs
-# this egress; the tracon node pod has no egress policy, so it already does.
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: buildkit-smoke
-  namespace: tracon-build
-spec:
-  podSelector:
-    matchLabels:
-      app.kubernetes.io/name: buildkit-smoke
-  policyTypes: ["Ingress", "Egress"]
-  egress:
-    - to:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: kube-system
-          podSelector:
-            matchLabels:
-              k8s-app: kube-dns
-      ports:
-        - protocol: UDP
-          port: 53
-        - protocol: TCP
-          port: 53
-    - to:
-        - podSelector:
-            matchLabels:
-              app.kubernetes.io/name: buildkitd
-      ports:
-        - protocol: TCP
-          port: 1234
-    - to:
-        - ipBlock:
-            cidr: 0.0.0.0/0
-            except:
-              - 10.0.0.0/8
-              - 172.16.0.0/12
-              - 192.168.0.0/16
-              - 169.254.0.0/16
-              - 100.64.0.0/10
       ports:
         - protocol: TCP
           port: 443

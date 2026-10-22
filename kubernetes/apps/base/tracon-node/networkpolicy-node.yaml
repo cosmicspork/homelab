@@ -1,10 +1,10 @@
-# The node accepts its harnesses on the forward, proxy and egress ports, and the
-# ingress controller on the operator API. A port-forward (or the Coder tunnel)
-# enters via the kubelet and is not subject to this either way.
+# The node accepts its harnesses on the forward, proxy and egress ports, and
+# cloudflared on the operator API. A port-forward (or the Coder tunnel) enters
+# via the kubelet and is not subject to this either way.
 #
-# Opening 7420 to the ingress is what lets the phone reach this node; the API
-# itself refuses anything off-loopback without the operator token, so the
-# policy and the node's own guard both have to be passed.
+# Opening 7420 to cloudflared is what lets the phone reach this node; Cloudflare
+# Access and the node's operator token both have to be passed, since the API
+# refuses anything off-loopback without the token.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -30,7 +30,7 @@ spec:
     - from:
         - namespaceSelector:
             matchLabels:
-              kubernetes.io/metadata.name: ingress-nginx
+              kubernetes.io/metadata.name: cloudflared
       ports:
         - protocol: TCP
           port: 7420
