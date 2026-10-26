@@ -92,10 +92,18 @@ spec:
       # onto idle cores.
       controllers:
         main:
-          # The library is a ReadWriteOnce volume. A rolling update can start
+          # The library is a ReadWriteOnce volume. A surging rollout can start
           # the new pod on a different node (a surge upgrade adds one) where
-          # the volume cannot attach while the old pod still holds it.
-          strategy: Recreate
+          # the volume cannot attach while the old pod still holds it, so the
+          # old pod stops first. This is Recreate in effect, kept as
+          # RollingUpdate because the live Deployment's defaulted rollingUpdate
+          # block can't be removed by an apply, and the API server rejects it
+          # alongside type Recreate. surge is a string because the chart drops
+          # a falsy 0.
+          strategy: RollingUpdate
+          rollingUpdate:
+            surge: "0"
+            unavailable: 1
           pod:
             securityContext:
               seccompProfile:
