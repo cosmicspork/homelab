@@ -4,6 +4,7 @@ resources:
   - namespace.yaml
   - networkpolicy.yaml
   - pvc.yaml
+  - secret.yaml
   - postgres-deployment.yaml
   - postgres-service.yaml
   - helmrepository.yaml

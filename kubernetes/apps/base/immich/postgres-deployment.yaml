@@ -6,7 +6,6 @@ metadata:
   annotations:
     ignore-check.kube-linter.io/run-as-non-root: The entrypoint starts as root and steps down to postgres with gosu.
     ignore-check.kube-linter.io/no-read-only-root-fs: The entrypoint writes /etc/postgresql/postgresql.conf at startup.
-    ignore-check.kube-linter.io/env-value-from: The immich-postgres Secret was applied out of band and is not in this kustomization yet.
 spec:
   replicas: 1
   selector:
