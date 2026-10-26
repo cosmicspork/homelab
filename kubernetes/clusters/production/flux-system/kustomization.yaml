@@ -3,3 +3,15 @@ kind: Kustomization
 resources:
 - gotk-components.yaml
 - gotk-sync.yaml
+# Nothing in CI reaches the cluster to trigger a reconcile (the control plane
+# firewall only admits an allowlist), so Flux polls. The app Kustomizations
+# apply as soon as a new revision is fetched, so this sets the deploy delay.
+# A patch here, not an edit to gotk-sync.yaml, survives a re-bootstrap.
+patches:
+- patch: |
+    - op: replace
+      path: /spec/interval
+      value: 5m
+  target:
+    kind: GitRepository
+    name: flux-system
