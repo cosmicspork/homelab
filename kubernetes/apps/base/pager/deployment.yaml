@@ -17,14 +17,26 @@ spec:
       labels:
         app: pager
     spec:
+      automountServiceAccountToken: false
       # The relay runs as nobody (65534); fsGroup makes the block volume writable
       # so it can persist subscriptions to /data.
       securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
         fsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: pager
           image: ghcr.io/cosmicspork/pager:0.7.0
           imagePullPolicy: Always
+          # It writes only to /data; the PWA it serves is baked into the image.
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
           ports:
             - containerPort: 4500
           env:

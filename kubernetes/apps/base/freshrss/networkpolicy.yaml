@@ -1,0 +1,57 @@
+# Default deny for the namespace; FreshRSS gets only what it needs.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny
+  namespace: freshrss
+spec:
+  podSelector: {}
+  policyTypes: ["Ingress", "Egress"]
+---
+# FreshRSS fetches whatever URL a feed names, so its egress is the internet on
+# any port minus private, link-local (the DO metadata service) and CGNAT
+# ranges. A malicious feed can't use it to reach anything inside the cluster
+# or the VPC.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: freshrss
+  namespace: freshrss
+spec:
+  podSelector:
+    matchLabels:
+      app: freshrss
+  policyTypes: ["Ingress", "Egress"]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: cloudflared
+          podSelector:
+            matchLabels:
+              app: cloudflared
+      ports:
+        - protocol: TCP
+          port: 80
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+              - 169.254.0.0/16
+              - 100.64.0.0/10
