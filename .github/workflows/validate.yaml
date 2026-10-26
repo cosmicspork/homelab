@@ -1,0 +1,43 @@
+name: Validate
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: validate-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  # Required by the main ruleset under this job name, and Renovate only
+  # automerges once it passes.
+  validate:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      # Pinned with checksums from each release's assets. Renovate can't
+      # update a checksum alongside a version, so these are bumped by hand.
+      - name: Install tools
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/bin" && cd "$RUNNER_TEMP"
+          fetch() { curl -fsSL -o "$1" "$2" && echo "$3  $1" | sha256sum -c -; }
+          fetch kustomize.tar.gz https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv5.8.3/kustomize_v5.8.3_linux_amd64.tar.gz cb9e31198d3f63b44848bd0afc4c8efc56e6cfef9c93a4a39a211940e6decd61
+          fetch kubeconform.tar.gz https://github.com/yannh/kubeconform/releases/download/v0.8.0/kubeconform-linux-amd64.tar.gz 9bc2bffbf71f261128533edaf912153948b7ff238f9a531ae6d34466ec287883
+          fetch kube-linter.tar.gz https://github.com/stackrox/kube-linter/releases/download/v0.8.3/kube-linter-linux.tar.gz 1a6d8419b11971372971fdbc22682b684ebfb7cf1c39591662d1b6ca736c41df
+          fetch bin/yq https://github.com/mikefarah/yq/releases/download/v4.53.6/yq_linux_amd64 c5f056448f973ae7d39b5401949648a78f2dc1947d6a8eb65be60d5c504b9385
+          for t in kustomize kubeconform kube-linter; do tar -xzf "$t.tar.gz" -C bin "$t"; done
+          chmod +x bin/*
+          echo "$RUNNER_TEMP/bin" >>"$GITHUB_PATH"
+
+      - name: Validate manifests
+        run: scripts/validate.sh

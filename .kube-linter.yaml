@@ -1,0 +1,22 @@
+# kube-linter's defaults plus the checks that hold the cluster's hardening in
+# place. An object that can't meet a check carries an
+# ignore-check.kube-linter.io/<check> annotation saying why.
+#
+# HelmRelease workloads (Immich) aren't rendered, so this sees only the raw
+# manifests.
+checks:
+  include:
+    # Every pod is selected by a NetworkPolicy.
+    - non-isolated-pod
+    - privilege-escalation-container
+    - drop-net-raw-capability
+    - privileged-ports
+    - unsafe-proc-mount
+    - access-to-secrets
+    - access-to-create-pods
+    - cluster-admin-role-binding
+    - wildcard-in-rules
+    - env-value-from
+  exclude:
+    # A single-node cluster: anti-affinity can't spread anything.
+    - no-anti-affinity

@@ -57,12 +57,19 @@ kubernetes/
       freshrss/
 scripts/
   buildkit-pki.sh            # Issues tracon-build's mTLS certificates as SOPS secrets
-.github/workflows/           # CI: post-push Flux reconcile, scheduled Renovate
+  validate.sh                # Renders the manifests and runs the checks CI requires
+.github/workflows/           # CI: manifest validation (required on main), scheduled Renovate
 .sops.yaml                   # SOPS rules — which files to encrypt, with which age key
 renovate.json                # Renovate config for dependency PRs
 ```
 
 Flux reconciliation order: `infrastructure` → `apps` (enforced via `dependsOn`). Infrastructure has `wait: true` so all operators and CRDs are ready before apps are applied.
+
+## Validation
+
+`scripts/validate.sh` renders what Flux applies and fails if any Secret is not SOPS-encrypted, if an object doesn't match its schema (`kubeconform -strict`), or if a workload fails `kube-linter` (`.kube-linter.yaml`, which also requires every pod to be selected by a NetworkPolicy). The `validate` workflow runs it on every pull request and on `main`; the `main` ruleset requires it, and Renovate automerges minor and patch updates only once it passes. An object that can't meet a lint check carries an `ignore-check.kube-linter.io/<check>` annotation saying why. Run it locally with `kustomize`, `kubeconform`, `kube-linter` and `yq` on PATH. The workflow pins those tools by version and checksum, so they are bumped by hand.
+
+Nothing in CI talks to the cluster: the DOKS control plane firewall admits only an allowlist. Flux fetches `main` every 5 minutes (a patch in `flux-system/kustomization.yaml`); `flux reconcile source git flux-system` from an allowed address applies a merge immediately.
 
 ## Secrets management (SOPS + age)
 

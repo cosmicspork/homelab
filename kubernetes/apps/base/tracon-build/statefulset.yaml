@@ -10,6 +10,8 @@ kind: StatefulSet
 metadata:
   name: buildkitd
   namespace: tracon-build
+  annotations:
+    ignore-check.kube-linter.io/no-read-only-root-fs: Not evaluated for rootless BuildKit yet.
 spec:
   serviceName: buildkitd
   replicas: 1

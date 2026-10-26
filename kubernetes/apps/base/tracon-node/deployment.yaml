@@ -3,6 +3,10 @@ kind: Deployment
 metadata:
   name: tracon-node
   namespace: tracon-node
+  annotations:
+    ignore-check.kube-linter.io/no-read-only-root-fs: Not evaluated for the node or its seed-config init container yet.
+    ignore-check.kube-linter.io/unset-cpu-requirements: seed-config is a one-shot copy; the namespace LimitRange supplies its requests.
+    ignore-check.kube-linter.io/unset-memory-requirements: seed-config is a one-shot copy; the namespace LimitRange supplies its limit.
 spec:
   replicas: 1
   # Recreate: the state claim is ReadWriteOnce.

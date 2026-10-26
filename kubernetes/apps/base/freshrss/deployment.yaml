@@ -3,6 +3,10 @@ kind: Deployment
 metadata:
   name: freshrss
   namespace: freshrss
+  annotations:
+    ignore-check.kube-linter.io/run-as-non-root: Root is needed to start; see the freshrss namespace labels.
+    ignore-check.kube-linter.io/no-read-only-root-fs: The entrypoint rewrites config under /etc and installs a crontab.
+    ignore-check.kube-linter.io/privileged-ports: Apache listens on 80, the image default; NET_BIND_SERVICE is the only cost.
 spec:
   replicas: 1
   selector:

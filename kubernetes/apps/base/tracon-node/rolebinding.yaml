@@ -3,6 +3,9 @@ kind: RoleBinding
 metadata:
   namespace: tracon-node
   name: tracon-node
+  annotations:
+    ignore-check.kube-linter.io/access-to-secrets: The node lends per-run credentials to harness pods through Secrets; see role.yaml.
+    ignore-check.kube-linter.io/access-to-create-pods: The node creates its harness pods; see role.yaml.
 subjects:
   - kind: ServiceAccount
     name: tracon-node
