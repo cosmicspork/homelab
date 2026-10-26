@@ -1,0 +1,68 @@
+# Default deny for the namespace; the relay gets only what it needs.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny
+  namespace: svastha
+spec:
+  podSelector: {}
+  policyTypes: ["Ingress", "Egress"]
+---
+# In from cloudflared (the PWAs) and from svastha-node, which talks to the
+# relay by Service; out to the internet on 443 for Web Push.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: svastha-relay
+  namespace: svastha
+spec:
+  podSelector:
+    matchLabels:
+      app: svastha-relay
+  policyTypes: ["Ingress", "Egress"]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: cloudflared
+          podSelector:
+            matchLabels:
+              app: cloudflared
+      ports:
+        - protocol: TCP
+          port: 8080
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: svastha-node
+          podSelector:
+            matchLabels:
+              app: svastha-node
+      ports:
+        - protocol: TCP
+          port: 8080
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+              - 169.254.0.0/16
+              - 100.64.0.0/10
+      ports:
+        - protocol: TCP
+          port: 443

@@ -2,3 +2,11 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: freshrss
+  labels:
+    # The image starts as root: its entrypoint rewrites config under /etc and
+    # installs the crontab, Apache binds :80 and drops to www-data, and the
+    # cron job reaches www-data through su. That rules out restricted, so the
+    # namespace enforces baseline and warns about the rest.
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/audit: restricted

@@ -17,9 +17,22 @@ spec:
       labels:
         app: freshrss
     spec:
+      automountServiceAccountToken: false
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: freshrss
           image: freshrss/freshrss:1.30.4
+          # Root is needed only to start up (see the namespace), so keep just
+          # the capabilities that needs: CHOWN/FOWNER/DAC_OVERRIDE for the
+          # entrypoint's permission fixes on the data volume, SETUID/SETGID for
+          # Apache's and su's switch to www-data, NET_BIND_SERVICE for :80.
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+              add: ["CHOWN", "DAC_OVERRIDE", "FOWNER", "SETUID", "SETGID", "NET_BIND_SERVICE"]
           ports:
             - containerPort: 80
           env:

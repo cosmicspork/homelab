@@ -1,0 +1,116 @@
+# Default deny for the namespace; cloudflared gets only what the tunnel needs.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny
+  namespace: cloudflared
+spec:
+  podSelector: {}
+  policyTypes: ["Ingress", "Egress"]
+---
+# Ingress: none. The kubelet's probes on :2000 come from the host, which
+# Cilium admits regardless of policy (buildkitd's probes already rely on it).
+#
+# Egress: the Cloudflare edge (7844 over QUIC and TCP, 443 for its API), and
+# the Service behind each public hostname in the ConfigMap. Backends are
+# matched on the pod port: Cilium applies policy after the Service's DNAT, as
+# tracon-node's policy (7420 only, behind a Service on 80) already shows.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: cloudflared
+  namespace: cloudflared
+spec:
+  podSelector:
+    matchLabels:
+      app: cloudflared
+  policyTypes: ["Ingress", "Egress"]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+              - 169.254.0.0/16
+              - 100.64.0.0/10
+      ports:
+        - protocol: UDP
+          port: 7844
+        - protocol: TCP
+          port: 7844
+        - protocol: TCP
+          port: 443
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: freshrss
+          podSelector:
+            matchLabels:
+              app: freshrss
+      ports:
+        - protocol: TCP
+          port: 80
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: immich
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: server
+      ports:
+        - protocol: TCP
+          port: 2283
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: pager
+          podSelector:
+            matchLabels:
+              app: pager
+      ports:
+        - protocol: TCP
+          port: 4500
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: svastha
+          podSelector:
+            matchLabels:
+              app: svastha-relay
+      ports:
+        - protocol: TCP
+          port: 8080
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: tracon
+          podSelector:
+            matchLabels:
+              app: tracon-hub
+      ports:
+        - protocol: TCP
+          port: 8080
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: tracon-node
+          podSelector:
+            matchLabels:
+              tracon.dev/role: node
+      ports:
+        - protocol: TCP
+          port: 7420

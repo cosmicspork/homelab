@@ -1,0 +1,70 @@
+# Default deny for the namespace; the hub gets only what it needs.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny
+  namespace: tracon
+spec:
+  podSelector: {}
+  policyTypes: ["Ingress", "Egress"]
+---
+# In from cloudflared (remote nodes) and from the in-cluster tracon node, which
+# uses the Service rather than the public name. Out on 443 only for snapshot
+# uploads to S3-compatible storage, which the hub supports but this
+# deployment doesn't configure yet.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: tracon-hub
+  namespace: tracon
+spec:
+  podSelector:
+    matchLabels:
+      app: tracon-hub
+  policyTypes: ["Ingress", "Egress"]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: cloudflared
+          podSelector:
+            matchLabels:
+              app: cloudflared
+      ports:
+        - protocol: TCP
+          port: 8080
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: tracon-node
+          podSelector:
+            matchLabels:
+              tracon.dev/role: node
+      ports:
+        - protocol: TCP
+          port: 8080
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+              - 169.254.0.0/16
+              - 100.64.0.0/10
+      ports:
+        - protocol: TCP
+          port: 443

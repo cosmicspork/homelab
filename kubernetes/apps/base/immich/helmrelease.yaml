@@ -55,8 +55,24 @@ spec:
       # runaway queue starve the node.
       controllers:
         main:
+          # The image's entrypoint only steps down from root to valkey (999);
+          # starting as 999 skips that. /data is an emptyDir, so the root
+          # filesystem can be read-only.
+          pod:
+            securityContext:
+              runAsNonRoot: true
+              runAsUser: 999
+              runAsGroup: 999
+              fsGroup: 999
+              seccompProfile:
+                type: RuntimeDefault
           containers:
             main:
+              securityContext:
+                readOnlyRootFilesystem: true
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ["ALL"]
               resources:
                 requests:
                   cpu: 10m
@@ -76,8 +92,23 @@ spec:
       # onto idle cores.
       controllers:
         main:
+          # The library is a ReadWriteOnce volume. A rolling update can start
+          # the new pod on a different node (a surge upgrade adds one) where
+          # the volume cannot attach while the old pod still holds it.
+          strategy: Recreate
+          pod:
+            securityContext:
+              seccompProfile:
+                type: RuntimeDefault
           containers:
             main:
+              # Runs as root because everything in the library is owned by
+              # root, but needs no capabilities: it binds 2283 and never
+              # changes user.
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ["ALL"]
               resources:
                 requests:
                   cpu: 100m

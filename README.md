@@ -11,7 +11,8 @@ GitOps-managed Kubernetes cluster running on DigitalOcean. Flux watches this rep
 | Provider | DigitalOcean Kubernetes |
 | Storage class | `do-block-storage-retain` (block volumes survive PVC deletion — manual cleanup required) |
 | Ingress | Cloudflare Tunnel (`cloudflared`, outbound only; no load balancer or public origin) |
-| Auth | Cloudflare Access on `rss`, `immich` and `tracon-node` |
+| Auth | Cloudflare Access on `rss` and `tracon-node` |
+| Network | A NetworkPolicy on every app pod (only tracon-node keeps open egress, for its proxies); Pod Security Admission labels on each app namespace |
 | TLS | Public: Cloudflare edge. Internal: buildkit mTLS from `scripts/buildkit-pki.sh` |
 | GitOps | Flux v2 |
 | Secrets | SOPS + age |
@@ -29,7 +30,7 @@ GitOps-managed Kubernetes cluster running on DigitalOcean. Flux watches this rep
 The cluster's only way in. Two replicas hold outbound connections to Cloudflare for the `homelab` tunnel, and `kubernetes/apps/production/cloudflared/configmap.yaml` maps each public hostname to its Service. The tunnel credentials are the SOPS secret beside the Deployment. Access applications and service tokens live in the Zero Trust dashboard, not in this repo.
 
 ### Immich
-Uses the official Helm chart with a self-managed Postgres deployment (`ghcr.io/immich-app/postgres`) that includes the Postgres extensions Immich requires. Machine learning is disabled. Library data is on a 100Gi PVC. The Postgres image version should be kept in sync with the Immich app version — check the official Immich docker-compose release for the matching tag.
+Reachable without Access: the mobile app can't complete a browser login, so Immich's own login is the gate. Its NetworkPolicies confine the server to its database, its queue and the internet. Uses the official Helm chart with a self-managed Postgres deployment (`ghcr.io/immich-app/postgres`) that includes the Postgres extensions Immich requires. Machine learning is disabled. Library data is on a 100Gi PVC. The Postgres image version should be kept in sync with the Immich app version — check the official Immich docker-compose release for the matching tag.
 
 ### FreshRSS
 Simple raw Deployment. Feeds refresh every 30 minutes via internal cron.
@@ -140,7 +141,8 @@ The storage class `do-block-storage-retain` means DigitalOcean block volumes are
 2. Create `kubernetes/apps/production/<app>/` with a `kustomization.yaml` referencing the base, plus any production-specific overlays.
 3. Add the app directory to `kubernetes/apps/production/kustomization.yaml`.
 4. If the app needs secrets, write a `secret.yaml` and run `sops --encrypt --in-place` before committing.
-5. If the app is public, add a hostname rule to the cloudflared ConfigMap, run `cloudflared tunnel route dns homelab <host>.0x69.xyz`, and add an Access application in Zero Trust unless the app must be reachable without one.
+5. Add a `networkpolicy.yaml`: a namespace-wide default deny, then what the app needs (see `freshrss/` for the shape). Label the namespace with the strictest Pod Security level the image meets.
+6. If the app is public, add a hostname rule to the cloudflared ConfigMap, an egress rule to the app's pod in `cloudflared/networkpolicy.yaml`, run `cloudflared tunnel route dns homelab <host>.0x69.xyz`, and add an Access application in Zero Trust unless the app must be reachable without one.
 
 ### A new infrastructure controller
 1. Create `kubernetes/infrastructure/controllers/<name>/` with namespace, HelmRepository, HelmRelease, and `kustomization.yaml`.

@@ -1,14 +1,15 @@
 # Public hostnames, routed straight to each app's Service. TLS ends at the
 # Cloudflare edge; the hop from here to the Service stays inside the cluster.
 #
-# A new hostname needs three things: a rule below, a proxied DNS record
-# (`cloudflared tunnel route dns homelab <host>`), and an Access application
-# in Zero Trust unless the app is meant to be reachable without one.
+# A new hostname needs four things: a rule below, an egress rule to the app's
+# pod in the cloudflared NetworkPolicy (apps/base/cloudflared), a proxied DNS
+# record (`cloudflared tunnel route dns homelab <host>`), and an Access
+# application in Zero Trust unless the app is meant to be reachable without one.
 #
-# Access (Zero Trust) sits in front of rss, immich and tracon-node. pager,
-# svastha-relay and tracon-hub are left open by design: their clients are an
-# extension, end-to-end encrypted PWAs and signed node requests, none of which
-# can complete a browser login.
+# Access (Zero Trust) sits in front of rss and tracon-node. immich, pager,
+# svastha-relay and tracon-hub are left open by design: their clients are a
+# mobile app, an extension, end-to-end encrypted PWAs and signed node
+# requests, none of which can complete a browser login.
 apiVersion: v1
 kind: ConfigMap
 metadata:
