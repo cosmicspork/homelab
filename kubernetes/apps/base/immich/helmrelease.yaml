@@ -34,7 +34,7 @@ spec:
           main:
             image:
               # renovate: image=ghcr.io/immich-app/immich-server
-              tag: v3.0.3
+              tag: v3.3.5
             env:
               # Service created by postgres-service.yaml
               DB_HOSTNAME: "immich-postgres.immich.svc.cluster.local"
