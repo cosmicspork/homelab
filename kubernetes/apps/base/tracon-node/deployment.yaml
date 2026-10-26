@@ -31,7 +31,7 @@ spec:
       initContainers:
         # Seed the config onto the volume once; the node writes to it later.
         - name: seed-config
-          image: ghcr.io/cosmicspork/tracon-node:0.39.0
+          image: ghcr.io/cosmicspork/tracon-node:0.40.0
           command: ["sh", "-c", "mkdir -p /state/config/tracon /state/tmp && [ -f /state/config/tracon/node.toml ] || cp /seed/node.toml /state/config/tracon/node.toml"]
           securityContext:
             allowPrivilegeEscalation: false
@@ -45,7 +45,7 @@ spec:
               readOnly: true
       containers:
         - name: node
-          image: ghcr.io/cosmicspork/tracon-node:0.39.0
+          image: ghcr.io/cosmicspork/tracon-node:0.40.0
           args: ["serve"]
           env:
             - name: XDG_CONFIG_HOME
