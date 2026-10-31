@@ -83,7 +83,7 @@ spec:
               value: "TRUE"
             # renovate: datasource=github-releases depName=cosmicspork/hearth-and-hollow
             - name: PACK_VERSION
-              value: "0.2.0"
+              value: "0.3.0"
             - name: GENERIC_PACK
               value: https://github.com/cosmicspork/hearth-and-hollow/releases/download/v$(PACK_VERSION)/Hearth-and-Hollow-$(PACK_VERSION)-server.zip
             # The image only re-checks the files its last checksum named, so a
