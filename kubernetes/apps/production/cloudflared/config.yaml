@@ -8,11 +8,10 @@
 # record (`cloudflared tunnel route dns homelab <host>`), and an Access
 # application in Zero Trust unless the app is meant to be reachable without one.
 #
-# Access (Zero Trust) sits in front of rss and tracon-node. immich, pager,
-# svastha-relay and tracon-hub are left open by design: their clients are a
-# mobile app, an extension, end-to-end encrypted PWAs and signed node
-# requests, none of which can complete a browser login. mc-wake is open too:
-# all it can do is start the Minecraft server, which a join does anyway.
+# Access (Zero Trust) sits in front of rss, tracon-node and mc-wake. immich,
+# pager, svastha-relay and tracon-hub are left open by design: their clients
+# are a mobile app, an extension, end-to-end encrypted PWAs and signed node
+# requests, none of which can complete a browser login.
 tunnel: ad82eaa7-0379-4890-9379-147286b1944f
 credentials-file: /etc/cloudflared/creds/credentials.json
 metrics: 0.0.0.0:2000
