@@ -1,0 +1,28 @@
+# Flux drops its default exclusions once this file has any pattern, so they are
+# restated here. The one exception is the wake page's wordmark, which ships in a
+# ConfigMap and would otherwise be dropped as a *.png.
+.git/
+.gitignore
+.gitmodules
+.gitattributes
+*.jpg
+*.jpeg
+*.gif
+*.png
+*.wmv
+*.flv
+*.tar.gz
+*.zip
+.github/
+.circleci/
+.travis.yml
+.gitlab-ci.yml
+appveyor.yml
+.drone.yml
+cloudbuild.yaml
+codeship-services.yml
+codeship-steps.yml
+**/.goreleaser.yml
+**/.sops.yaml
+**/.flux.yaml
+!kubernetes/apps/base/minecraft/wordmark.png
