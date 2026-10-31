@@ -50,6 +50,8 @@ Outside this repo: the `minecraft` node pool, the `homelab-minecraft` cloud fire
 
 The world lives on the `hearth-data` volume. The pod's `world-guard` init container waits until `/data/world/level.dat` exists, so an empty volume never generates a new world: to import one, copy it in with `kubectl cp <world-dir> minecraft/hearth-0:/data/world -c world-guard` while the guard is waiting. Simple Backups writes zips to `/data/simplebackups` on the same volume, so take a volume snapshot now and then.
 
+Server console commands (game rules, Chunky, `whitelist add`) go through `kubectl -n minecraft exec hearth-0 -c server -- mc-send-to-console <command>` while it is awake; output lands in the pod log.
+
 ## Repository structure
 
 ```
