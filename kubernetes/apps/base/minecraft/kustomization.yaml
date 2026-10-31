@@ -20,3 +20,4 @@ configMapGenerator:
     namespace: minecraft
     files:
       - wake.py
+      - wordmark.png
