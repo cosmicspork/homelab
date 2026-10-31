@@ -28,8 +28,8 @@ metadata:
   name: minecraft
   namespace: minecraft
   annotations:
-    external-dns.alpha.kubernetes.io/hostname: mc.0x69.xyz
-    external-dns.alpha.kubernetes.io/ttl: "60"
+    external-dns.kubernetes.io/hostname: mc.0x69.xyz
+    external-dns.kubernetes.io/ttl: "60"
 spec:
   type: NodePort
   externalTrafficPolicy: Local

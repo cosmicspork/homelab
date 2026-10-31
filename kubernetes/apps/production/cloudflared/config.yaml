@@ -1,0 +1,35 @@
+# cloudflared's config: public hostnames, routed straight to each app's
+# Service. TLS ends at the Cloudflare edge; the hop from here to the Service
+# stays inside the cluster. cloudflared reads this only at startup; the
+# ConfigMap is generated with a hash suffix, so a change rolls the pods.
+#
+# A new hostname needs four things: a rule below, an egress rule to the app's
+# pod in the cloudflared NetworkPolicy (apps/base/cloudflared), a proxied DNS
+# record (`cloudflared tunnel route dns homelab <host>`), and an Access
+# application in Zero Trust unless the app is meant to be reachable without one.
+#
+# Access (Zero Trust) sits in front of rss and tracon-node. immich, pager,
+# svastha-relay and tracon-hub are left open by design: their clients are a
+# mobile app, an extension, end-to-end encrypted PWAs and signed node
+# requests, none of which can complete a browser login. mc-wake is open too:
+# all it can do is start the Minecraft server, which a join does anyway.
+tunnel: ad82eaa7-0379-4890-9379-147286b1944f
+credentials-file: /etc/cloudflared/creds/credentials.json
+metrics: 0.0.0.0:2000
+no-autoupdate: true
+ingress:
+  - hostname: rss.0x69.xyz
+    service: http://freshrss.freshrss.svc.cluster.local
+  - hostname: immich.0x69.xyz
+    service: http://immich-server.immich.svc.cluster.local:2283
+  - hostname: pager.0x69.xyz
+    service: http://pager.pager.svc.cluster.local
+  - hostname: svastha-relay.0x69.xyz
+    service: http://svastha-relay.svastha.svc.cluster.local
+  - hostname: tracon-hub.0x69.xyz
+    service: http://tracon-hub.tracon.svc.cluster.local
+  - hostname: tracon-node.0x69.xyz
+    service: http://tracon-node.tracon-node.svc.cluster.local
+  - hostname: mc-wake.0x69.xyz
+    service: http://wake.minecraft.svc.cluster.local
+  - service: http_status:404
