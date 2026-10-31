@@ -47,6 +47,13 @@ spec:
     domainFilters:
       - 0x69.xyz
     policy: upsert-only
+    # SRV for minecraft's _minecraft._tcp record; external-dns drops record
+    # types it isn't told to manage.
+    managedRecordTypes:
+      - A
+      - AAAA
+      - CNAME
+      - SRV
     registry: txt
     txtOwnerId: homelab
     interval: 1m
