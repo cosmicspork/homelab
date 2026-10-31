@@ -138,6 +138,11 @@ spec:
               value: skraelingjar
             - name: ENABLE_RCON
               value: "FALSE"
+            # Admin commands without RCON or an open port: a named pipe in /tmp
+            # that `kubectl exec hearth-0 -c server -- mc-send-to-console <cmd>`
+            # writes to, so only someone who can exec into the pod can use it.
+            - name: CREATE_CONSOLE_IN_PIPE
+              value: "TRUE"
           resources:
             # The node is an s-4vcpu-8gb to itself (~5.8Gi left after the
             # daemonsets). Requests equal the limit so the scheduler never
