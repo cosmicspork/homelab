@@ -1,0 +1,74 @@
+# mc-wake.0x69.xyz, open without Access: shows whether the server is up and
+# wakes it, so it can boot while players launch the game. It reaches the
+# server only through mc-router, as a client would (see wake.py), so the worst
+# a stranger can do is start it for an hour.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wake
+  namespace: minecraft
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: wake
+  template:
+    metadata:
+      labels:
+        app: wake
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: wake
+          image: python:3.13.18-alpine3.24
+          command: ["python", "-I", "/app/wake.py"]
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: ROUTER_HOST
+              value: minecraft.minecraft.svc.cluster.local
+            - name: SERVER_ADDRESS
+              value: mc.0x69.xyz
+            - name: AUTO_SCALE_ASLEEP_MOTD
+              valueFrom:
+                configMapKeyRef:
+                  name: mc-router
+                  key: AUTO_SCALE_ASLEEP_MOTD
+            - name: PYTHONDONTWRITEBYTECODE
+              value: "1"
+          resources:
+            requests:
+              cpu: 5m
+              memory: 24Mi
+            limits:
+              memory: 64Mi
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 30
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 60
+          volumeMounts:
+            - name: app
+              mountPath: /app
+              readOnly: true
+      volumes:
+        - name: app
+          configMap:
+            name: wake

@@ -1,0 +1,102 @@
+# mc-router (https://github.com/itzg/mc-router) answers for the server while
+# it sleeps, wakes it when a player logs in and puts it back to sleep after an
+# hour with nobody connected. It only watches this namespace, so a Role does.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: mc-router
+  namespace: minecraft
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: mc-router
+  namespace: minecraft
+rules:
+  - apiGroups: [""]
+    resources: ["services"]
+    verbs: ["watch", "list"]
+  # Scaling is a patch of spec.replicas on the StatefulSet itself.
+  - apiGroups: ["apps"]
+    resources: ["statefulsets"]
+    verbs: ["watch", "list", "patch"]
+  - apiGroups: ["apps"]
+    resources: ["statefulsets/scale"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: mc-router
+  namespace: minecraft
+subjects:
+  - kind: ServiceAccount
+    name: mc-router
+roleRef:
+  kind: Role
+  name: mc-router
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mc-router
+  namespace: minecraft
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mc-router
+  template:
+    metadata:
+      labels:
+        app: mc-router
+    spec:
+      serviceAccountName: mc-router
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: mc-router
+          image: itzg/mc-router:1.50.1
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          ports:
+            - name: minecraft
+              containerPort: 25565
+            # Only for the probes; the NetworkPolicy admits no one to it.
+            - name: api
+              containerPort: 8080
+          env:
+            - name: IN_KUBE_CLUSTER
+              value: "true"
+            - name: KUBE_NAMESPACE
+              value: minecraft
+            - name: API_BINDING
+              value: ":8080"
+          envFrom:
+            - configMapRef:
+                name: mc-router
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 128Mi
+          readinessProbe:
+            httpGet:
+              path: /routes
+              port: api
+            periodSeconds: 30
+          livenessProbe:
+            httpGet:
+              path: /routes
+              port: api
+            initialDelaySeconds: 10
+            periodSeconds: 60

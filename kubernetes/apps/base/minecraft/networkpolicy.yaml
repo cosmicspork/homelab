@@ -1,0 +1,137 @@
+# Default deny for the namespace; each pod gets only what it needs.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny
+  namespace: minecraft
+spec:
+  podSelector: {}
+  policyTypes: ["Ingress", "Egress"]
+---
+# In: players from anywhere through the NodePort (Local keeps their address,
+# so there is nothing narrower to match) and the wake page. Out: DNS and the
+# server. The API server is in networkpolicy-cilium.yaml.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: mc-router
+  namespace: minecraft
+spec:
+  podSelector:
+    matchLabels:
+      app: mc-router
+  policyTypes: ["Ingress", "Egress"]
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: 25565
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - to:
+        - podSelector:
+            matchLabels:
+              app: hearth
+      ports:
+        - protocol: TCP
+          port: 25565
+---
+# In: only mc-router. Out: the internet on 443, for the server pack and
+# NeoForge downloads, Mojang's session server (online-mode logins) and spark
+# report uploads.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: hearth
+  namespace: minecraft
+spec:
+  podSelector:
+    matchLabels:
+      app: hearth
+  policyTypes: ["Ingress", "Egress"]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: mc-router
+      ports:
+        - protocol: TCP
+          port: 25565
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+              - 169.254.0.0/16
+              - 100.64.0.0/10
+      ports:
+        - protocol: TCP
+          port: 443
+---
+# In: cloudflared. Out: DNS and mc-router.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: wake
+  namespace: minecraft
+spec:
+  podSelector:
+    matchLabels:
+      app: wake
+  policyTypes: ["Ingress", "Egress"]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: cloudflared
+          podSelector:
+            matchLabels:
+              app: cloudflared
+      ports:
+        - protocol: TCP
+          port: 8080
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - to:
+        - podSelector:
+            matchLabels:
+              app: mc-router
+      ports:
+        - protocol: TCP
+          port: 25565

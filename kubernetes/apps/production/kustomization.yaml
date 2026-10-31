@@ -10,3 +10,5 @@ resources:
   - tracon-hub
   - tracon-node
   - tracon-build
+  - external-dns
+  - minecraft

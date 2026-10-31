@@ -114,3 +114,13 @@ spec:
       ports:
         - protocol: TCP
           port: 7420
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: minecraft
+          podSelector:
+            matchLabels:
+              app: wake
+      ports:
+        - protocol: TCP
+          port: 8080

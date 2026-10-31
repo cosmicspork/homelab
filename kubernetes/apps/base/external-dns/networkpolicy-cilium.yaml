@@ -1,0 +1,18 @@
+# The API server, which a NetworkPolicy can't name (see
+# apps/base/minecraft/networkpolicy-cilium.yaml).
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: external-dns-apiserver
+  namespace: external-dns
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: external-dns
+  egress:
+    - toEntities:
+        - kube-apiserver
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP

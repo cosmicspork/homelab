@@ -1,0 +1,55 @@
+# The server, as mc-router sees it. mc-router routes to the ClusterIP and
+# scales the StatefulSet whose serviceName is this Service's name.
+apiVersion: v1
+kind: Service
+metadata:
+  name: hearth
+  namespace: minecraft
+  annotations:
+    mc-router.itzg.me/externalServerName: mc.0x69.xyz
+spec:
+  selector:
+    app: hearth
+  ports:
+    - name: minecraft
+      port: 25565
+      targetPort: minecraft
+---
+# The way in for players. external-dns publishes mc.0x69.xyz as an A record
+# for the node running mc-router, plus _minecraft._tcp.mc.0x69.xyz as an SRV
+# record for this NodePort (named after the Service, hence `minecraft`), so
+# clients join at plain mc.0x69.xyz. Local keeps the client's address and
+# limits the record to the node mc-router is on; nodes in the minecraft pool
+# never run it. A DigitalOcean cloud firewall on the cluster's worker tag
+# admits the port, since the DOKS-managed one admits nothing from outside.
+apiVersion: v1
+kind: Service
+metadata:
+  name: minecraft
+  namespace: minecraft
+  annotations:
+    external-dns.alpha.kubernetes.io/hostname: mc.0x69.xyz
+    external-dns.alpha.kubernetes.io/ttl: "60"
+spec:
+  type: NodePort
+  externalTrafficPolicy: Local
+  selector:
+    app: mc-router
+  ports:
+    - name: minecraft
+      port: 25565
+      targetPort: minecraft
+      nodePort: 30565
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: wake
+  namespace: minecraft
+spec:
+  selector:
+    app: wake
+  ports:
+    - name: http
+      port: 80
+      targetPort: http

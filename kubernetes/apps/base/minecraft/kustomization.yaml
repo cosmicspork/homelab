@@ -1,0 +1,22 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - namespace.yaml
+  - networkpolicy.yaml
+  - networkpolicy-cilium.yaml
+  - pvc.yaml
+  - statefulset.yaml
+  - mc-router.yaml
+  - wake.yaml
+  - service.yaml
+# Hash-suffixed, so a change rolls mc-router or the wake page on the next
+# reconcile.
+configMapGenerator:
+  - name: mc-router
+    namespace: minecraft
+    envs:
+      - mc-router.env
+  - name: wake
+    namespace: minecraft
+    files:
+      - wake.py
