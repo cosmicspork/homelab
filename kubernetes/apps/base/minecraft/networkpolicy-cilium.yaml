@@ -1,0 +1,21 @@
+# mc-router watches Services and patches the StatefulSet. Cilium gives the API
+# server's address the reserved kube-apiserver identity rather than a CIDR
+# one, and the supported way to allow it is the kube-apiserver entity, which
+# only a CiliumNetworkPolicy can name. Cilium adds this to the NetworkPolicies
+# in networkpolicy.yaml.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: mc-router-apiserver
+  namespace: minecraft
+spec:
+  endpointSelector:
+    matchLabels:
+      app: mc-router
+  egress:
+    - toEntities:
+        - kube-apiserver
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP

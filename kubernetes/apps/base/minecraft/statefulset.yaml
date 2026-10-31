@@ -1,0 +1,176 @@
+# The Hearth & Hollow server (https://github.com/cosmicspork/hearth-and-hollow),
+# on itzg/minecraft-server with the release's server pack.
+#
+# mc-router owns the replica count: it scales this between 0 and 1 as players
+# arrive and leave, so `replicas` is left out and Flux never resets it. A new
+# StatefulSet starts at 1.
+#
+# The pod runs alone on the `minecraft` node pool (autoscaled 0-1 nodes), so
+# the node exists only while the server does.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: hearth
+  namespace: minecraft
+spec:
+  # Must equal the StatefulSet's name: mc-router finds what to scale through it.
+  serviceName: hearth
+  selector:
+    matchLabels:
+      app: hearth
+  template:
+    metadata:
+      labels:
+        app: hearth
+    spec:
+      automountServiceAccountToken: false
+      # The image's stop handling sends `stop` and waits for the world to save.
+      terminationGracePeriodSeconds: 120
+      nodeSelector:
+        workload: minecraft
+      tolerations:
+        - key: workload
+          operator: Equal
+          value: minecraft
+          effect: NoSchedule
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        # The volume holds tens of thousands of region and pack files; a
+        # recursive chown on every wake would add to the cold start.
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        # Refuses to start a server without the imported world, so an empty or
+        # wrong volume never generates a fresh one. On the first start this is
+        # where the world is copied in (kubectl cp into this container).
+        - name: world-guard
+          image: itzg/minecraft-server:2026.10.1-java21
+          command:
+            - sh
+            - -c
+            - until [ -f /data/world/level.dat ]; do echo "waiting for /data/world/level.dat"; sleep 10; done
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              memory: 64Mi
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      containers:
+        - name: server
+          image: itzg/minecraft-server:2026.10.1-java21
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          ports:
+            - name: minecraft
+              containerPort: 25565
+          env:
+            - name: EULA
+              value: "TRUE"
+            # renovate: datasource=github-releases depName=cosmicspork/hearth-and-hollow
+            - name: PACK_VERSION
+              value: "0.2.0"
+            - name: GENERIC_PACK
+              value: https://github.com/cosmicspork/hearth-and-hollow/releases/download/v$(PACK_VERSION)/Hearth-and-Hollow-$(PACK_VERSION)-server.zip
+            # The image only re-checks the files its last checksum named, so a
+            # new pack URL alone is never applied. Forcing it costs a few
+            # seconds a boot; the pack manifest then removes files the new
+            # version dropped. It also means the pack's config files overwrite
+            # the server's on every start: change them in the pack.
+            - name: FORCE_GENERIC_PACK_UPDATE
+              value: "TRUE"
+            - name: TYPE
+              value: NEOFORGE
+            - name: VERSION
+              value: "1.21.1"
+            # Must match pack.toml at PACK_VERSION; a pack release can move it.
+            - name: NEOFORGE_VERSION
+              value: "21.1.259"
+            # 4G heap measured at ~5.2G resident with metaspace and off-heap.
+            - name: INIT_MEMORY
+              value: 4G
+            - name: MAX_MEMORY
+              value: 4G
+            - name: USE_AIKAR_FLAGS
+              value: "TRUE"
+            # server.properties. The world's own settings are normal and
+            # survival; the rest follow the pack's server guide.
+            - name: LEVEL
+              value: world
+            - name: MOTD
+              value: Hearth & Hollow
+            - name: DIFFICULTY
+              value: normal
+            - name: MODE
+              value: survival
+            # Jetpacks and paragliders count as flying.
+            - name: ALLOW_FLIGHT
+              value: "TRUE"
+            - name: VIEW_DISTANCE
+              value: "8"
+            - name: SIMULATION_DISTANCE
+              value: "6"
+            - name: SPAWN_PROTECTION
+              value: "0"
+            - name: MAX_PLAYERS
+              value: "10"
+            - name: ENABLE_WHITELIST
+              value: "TRUE"
+            - name: ENFORCE_WHITELIST
+              value: "TRUE"
+            - name: WHITELIST
+              value: skraelingjar,Wichita1997
+            - name: OPS
+              value: skraelingjar
+            - name: ENABLE_RCON
+              value: "FALSE"
+          resources:
+            # The node is an s-4vcpu-8gb to itself (~5.8Gi left after the
+            # daemonsets). Requests equal the limit so the scheduler never
+            # places the server where it could be squeezed.
+            requests:
+              cpu: "2"
+              memory: 5632Mi
+            limits:
+              memory: 5632Mi
+          startupProbe:
+            exec:
+              command: ["mc-health"]
+            periodSeconds: 10
+            failureThreshold: 60
+          readinessProbe:
+            exec:
+              command: ["mc-health"]
+            periodSeconds: 30
+          livenessProbe:
+            exec:
+              command: ["mc-health"]
+            periodSeconds: 60
+            timeoutSeconds: 10
+            failureThreshold: 5
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: hearth-data
+        - name: tmp
+          emptyDir:
+            sizeLimit: 512Mi

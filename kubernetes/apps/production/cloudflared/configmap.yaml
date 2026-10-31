@@ -6,9 +6,9 @@
 # record (`cloudflared tunnel route dns homelab <host>`), and an Access
 # application in Zero Trust unless the app is meant to be reachable without one.
 #
-# Access (Zero Trust) sits in front of rss and tracon-node. immich, pager,
-# svastha-relay and tracon-hub are left open by design: their clients are a
-# mobile app, an extension, end-to-end encrypted PWAs and signed node
+# Access (Zero Trust) sits in front of rss, tracon-node and mc-wake. immich,
+# pager, svastha-relay and tracon-hub are left open by design: their clients
+# are a mobile app, an extension, end-to-end encrypted PWAs and signed node
 # requests, none of which can complete a browser login.
 apiVersion: v1
 kind: ConfigMap
@@ -34,4 +34,6 @@ data:
         service: http://tracon-hub.tracon.svc.cluster.local
       - hostname: tracon-node.0x69.xyz
         service: http://tracon-node.tracon-node.svc.cluster.local
+      - hostname: mc-wake.0x69.xyz
+        service: http://wake.minecraft.svc.cluster.local
       - service: http_status:404

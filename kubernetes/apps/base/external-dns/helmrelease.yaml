@@ -1,0 +1,61 @@
+# Keeps DNS-only Cloudflare records for NodePort Services that ask for one
+# (today only minecraft's mc.0x69.xyz), so a node replaced by an upgrade gets
+# its new address published within a minute. Tunnel hostnames stay with
+# `cloudflared tunnel route dns`; this never sees them: it reads only
+# annotated NodePort Services, only touches records it created (its TXT
+# ownership records), and never deletes.
+#
+# Under apps rather than infrastructure/controllers: it serves one app, and
+# infrastructure waits for health, so a bad token here would hold back every
+# app's reconcile.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: external-dns
+  namespace: external-dns
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: external-dns
+      version: 1.23.0
+      sourceRef:
+        kind: HelmRepository
+        name: external-dns
+        namespace: flux-system
+      interval: 24h
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      strategy: rollback
+      retries: 3
+  values:
+    provider:
+      name: cloudflare
+    # A token scoped to Zone:DNS:Edit and Zone:Zone:Read on 0x69.xyz only.
+    env:
+      - name: CF_API_TOKEN
+        valueFrom:
+          secretKeyRef:
+            name: cloudflare-api-token
+            key: api-token
+    sources:
+      - service
+    domainFilters:
+      - 0x69.xyz
+    policy: upsert-only
+    registry: txt
+    txtOwnerId: homelab
+    interval: 1m
+    extraArgs:
+      - --service-type-filter=NodePort
+      - --cloudflare-dns-records-per-page=5000
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        memory: 128Mi

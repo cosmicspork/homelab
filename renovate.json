@@ -33,6 +33,17 @@
         "#\\s*renovate:\\s*image=(?<depName>\\S+)\\s+tag:\\s+\"?(?<currentValue>[^\"\\s]+)\"?"
       ],
       "datasourceTemplate": "docker"
+    },
+    {
+      "description": "A version in an env var under a `# renovate: datasource=... depName=...` comment, such as the Hearth & Hollow server pack; release tags carry a v",
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/(^|/)kubernetes/.+\\.ya?ml$/"
+      ],
+      "matchStrings": [
+        "#\\s*renovate:\\s*datasource=(?<datasource>\\S+)\\s+depName=(?<depName>\\S+)\\s+-\\s+name:\\s+\\S+\\s+value:\\s+\"?(?<currentValue>[^\"\\s]+)\"?"
+      ],
+      "extractVersionTemplate": "^v(?<version>.+)$"
     }
   ],
   "packageRules": [
@@ -63,6 +74,19 @@
       "description": "BuildKit runs with Unconfined seccomp and AppArmor and must stay wire-compatible with the buildctl in the tracon-node image, so every bump gets a human review",
       "matchPackageNames": ["moby/buildkit", "docker.io/moby/buildkit"],
       "automerge": false
+    },
+    {
+      "description": "Merging any of these restarts the Minecraft server if it is up, kicking whoever is on, so each waits for a human",
+      "matchPackageNames": ["cosmicspork/hearth-and-hollow", "itzg/minecraft-server", "itzg/mc-router"],
+      "automerge": false
+    },
+    {
+      "description": "The server pack: self-published, so no cooldown, but merged only once CurseForge has approved the matching client",
+      "matchPackageNames": ["cosmicspork/hearth-and-hollow"],
+      "minimumReleaseAge": null,
+      "prBodyNotes": [
+        "Merge once CurseForge has approved this version of the client pack: players can only join with the same version. If the release moved NeoForge, update `NEOFORGE_VERSION` beside `PACK_VERSION` to match its `pack.toml`."
+      ]
     },
     {
       "matchDatasources": ["docker"],

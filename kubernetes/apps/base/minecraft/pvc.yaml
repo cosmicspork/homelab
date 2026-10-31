@@ -1,0 +1,15 @@
+# The server directory: world, pack files, ops/whitelist and Simple Backups'
+# zips (every 2 hours while it runs, newest 10 kept), so sized for those
+# rather than the ~320Mi world.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: hearth-data
+  namespace: minecraft
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: do-block-storage-retain
+  resources:
+    requests:
+      storage: 20Gi
