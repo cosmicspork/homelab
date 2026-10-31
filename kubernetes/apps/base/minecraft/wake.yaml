@@ -1,6 +1,7 @@
-# mc-wake.0x69.xyz, behind Cloudflare Access: shows whether the server is up
-# and wakes it, so it can boot while players launch the game. It reaches the
-# server only through mc-router, as a client would (see wake.py).
+# mc-wake.0x69.xyz, open without Access: shows whether the server is up and
+# wakes it, so it can boot while players launch the game. It reaches the
+# server only through mc-router, as a client would (see wake.py), so the worst
+# a stranger can do is start it for an hour.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
