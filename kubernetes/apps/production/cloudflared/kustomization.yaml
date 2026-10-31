@@ -2,4 +2,10 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - ../../base/cloudflared
-  - configmap.yaml
+# Hash-suffixed, so a routing change rolls cloudflared on the next reconcile;
+# it never rereads its config on its own.
+configMapGenerator:
+  - name: cloudflared
+    namespace: cloudflared
+    files:
+      - config.yaml

@@ -29,7 +29,7 @@ GitOps-managed Kubernetes cluster running on DigitalOcean. Flux watches this rep
 | external-dns | n/a | Helm chart (kubernetes-sigs), Cloudflare provider |
 
 ### cloudflared
-The cluster's only way in. Two replicas hold outbound connections to Cloudflare for the `homelab` tunnel, and `kubernetes/apps/production/cloudflared/configmap.yaml` maps each public hostname to its Service. The tunnel credentials are the SOPS secret beside the Deployment. Access applications and service tokens live in the Zero Trust dashboard, not in this repo.
+The cluster's only way in. Two replicas hold outbound connections to Cloudflare for the `homelab` tunnel, and `kubernetes/apps/production/cloudflared/config.yaml` maps each public hostname to its Service (generated into a hash-suffixed ConfigMap, so a change rolls the pods). The tunnel credentials are the SOPS secret beside the Deployment. Access applications and service tokens live in the Zero Trust dashboard, not in this repo.
 
 ### Immich
 Reachable without Access: the mobile app can't complete a browser login, so Immich's own login is the gate. Its NetworkPolicies confine the server to its database, its queue and the internet. Uses the official Helm chart with a self-managed Postgres deployment (`ghcr.io/immich-app/postgres`) that includes the Postgres extensions Immich requires. Machine learning is disabled. Library data is on a 100Gi PVC. The Postgres image version should be kept in sync with the Immich app version — check the official Immich docker-compose release for the matching tag.
@@ -69,7 +69,7 @@ kubernetes/
       minecraft/             # Hearth & Hollow server, mc-router and the wake page
       external-dns/          # Cloudflare DNS records for NodePort Services
     production/              # Production overlays and environment-specific resources
-      cloudflared/           # Tunnel config: public hostname -> Service
+      cloudflared/           # Tunnel config (config.yaml): public hostname -> Service
       immich/
       freshrss/
       minecraft/
