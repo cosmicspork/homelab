@@ -11,7 +11,7 @@ GitOps-managed Kubernetes cluster running on DigitalOcean. Flux watches this rep
 | Provider | DigitalOcean Kubernetes |
 | Storage class | `do-block-storage-retain` (block volumes survive PVC deletion — manual cleanup required) |
 | Ingress | Cloudflare Tunnel (`cloudflared`, outbound only; no load balancer) for HTTP. The one exception is the Minecraft NodePort (30565), admitted by its own cloud firewall |
-| Auth | Cloudflare Access on `rss` and `tracon-node` |
+| Auth | Cloudflare Access on `rss`, `tracon-node` and `mc-wake` |
 | Network | A NetworkPolicy on every app pod (only tracon-node keeps open egress, for its proxies), plus a CiliumNetworkPolicy where a pod needs the API server; Pod Security Admission labels on each app namespace |
 | TLS | Public: Cloudflare edge. Internal: buildkit mTLS from `scripts/buildkit-pki.sh` |
 | GitOps | Flux v2 |
@@ -42,11 +42,11 @@ A whitelisted server for the [Hearth & Hollow](https://github.com/cosmicspork/he
 
 - **mc-router** listens on the `minecraft` NodePort. While the server sleeps it answers the server list itself. A login scales the `hearth` StatefulSet to 1 and kicks the player with a "waking up" message, and an hour with nobody connected scales it back to 0. It owns the replica count, so the StatefulSet has no `replicas` for Flux to reset.
 - **The server** runs alone on the `minecraft` node pool (`s-4vcpu-8gb-amd`, autoscaled 0-1, label and taint `workload=minecraft`), so that node exists only while someone plays. From asleep, a join takes roughly the new node's boot, the volume attach, the image pull and about 30 s of server start.
-- **The wake page** (`mc-wake.0x69.xyz`) shows whether the server is up and wakes it, so it boots while players launch the game. It does that by logging in to mc-router the way a client would, so it needs no API access. It is open without Access on purpose: all it can do is start the server, which joining does anyway, and anyone waking it without playing only costs an hour of node time.
+- **The wake page** (`mc-wake.0x69.xyz`) shows whether the server is up and wakes it, so it boots while players launch the game. It does that by logging in to mc-router the way a client would, so it needs no API access. It sits behind Access because it is optional: joining wakes the server too, so the game itself stays reachable without a login, and only the players in the Access policy can wake it from the page.
 - **DNS**: external-dns publishes `mc.0x69.xyz` (the node mc-router runs on) and the `_minecraft._tcp` SRV record for the NodePort as DNS-only Cloudflare records, and republishes them when an upgrade replaces the node.
 - **Updates**: Renovate tracks the pack's GitHub releases through `PACK_VERSION` and never automerges them (or the itzg images): a pack release is merged once CurseForge has approved the matching client.
 
-Outside this repo: the `minecraft` node pool, the `homelab-minecraft` cloud firewall (TCP 30565 inbound on the cluster's worker tag; the DOKS-managed firewall admits nothing from outside), the Cloudflare API token in `external-dns/secret.yaml` (Zone:DNS:Edit and Zone:Zone:Read on `0x69.xyz`), and the proxied `mc-wake` tunnel CNAME.
+Outside this repo: the `minecraft` node pool, the `homelab-minecraft` cloud firewall (TCP 30565 inbound on the cluster's worker tag; the DOKS-managed firewall admits nothing from outside), the Cloudflare API token in `external-dns/secret.yaml` (Zone:DNS:Edit and Zone:Zone:Read on `0x69.xyz`), the proxied `mc-wake` tunnel CNAME, and the `mc-wake` Access application (its policy lists the players).
 
 The world lives on the `hearth-data` volume. The pod's `world-guard` init container waits until `/data/world/level.dat` exists, so an empty volume never generates a new world: to import one, copy it in with `kubectl cp <world-dir> minecraft/hearth-0:/data/world -c world-guard` while the guard is waiting. Simple Backups writes zips to `/data/simplebackups` on the same volume, so take a volume snapshot now and then.
 
