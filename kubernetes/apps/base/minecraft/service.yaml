@@ -7,6 +7,11 @@ metadata:
   namespace: minecraft
   annotations:
     mc-router.itzg.me/externalServerName: mc.0x69.xyz
+    # How long a wake waits for the server to answer. The 60s default is gone
+    # before a cold start brings up a node (about 5.5 minutes), and mc-router
+    # only arms the scale-down timer after a wake that succeeds, so a timed-out
+    # wake that nobody follows with a login stays up indefinitely.
+    mc-router.itzg.me/autoScaleWaitTimeout: 10m
 spec:
   selector:
     app: hearth
