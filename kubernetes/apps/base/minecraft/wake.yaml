@@ -45,6 +45,11 @@ spec:
                 configMapKeyRef:
                   name: mc-router
                   key: AUTO_SCALE_ASLEEP_MOTD
+            - name: AUTO_SCALE_LOADING_MOTD
+              valueFrom:
+                configMapKeyRef:
+                  name: mc-router
+                  key: AUTO_SCALE_LOADING_MOTD
             - name: PYTHONDONTWRITEBYTECODE
               value: "1"
           resources:
