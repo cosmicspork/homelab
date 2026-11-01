@@ -1,0 +1,18 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - namespace.yaml
+  - networkpolicy.yaml
+  - networkpolicy-cilium.yaml
+  - rbac.yaml
+  - pvc.yaml
+  - victoria-metrics.yaml
+  - helmrepository.yaml
+  - kube-state-metrics.yaml
+# Hash-suffixed, so a scrape change rolls VictoriaMetrics on the next
+# reconcile.
+configMapGenerator:
+  - name: victoria-metrics-scrape
+    namespace: monitoring
+    files:
+      - scrape.yaml

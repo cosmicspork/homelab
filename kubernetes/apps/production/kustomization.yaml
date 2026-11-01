@@ -12,3 +12,4 @@ resources:
   - tracon-build
   - external-dns
   - minecraft
+  - monitoring

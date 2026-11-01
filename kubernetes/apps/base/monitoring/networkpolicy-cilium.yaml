@@ -1,0 +1,45 @@
+# What a NetworkPolicy can't name (see
+# apps/base/minecraft/networkpolicy-cilium.yaml). VictoriaMetrics needs the
+# API server for node discovery, and each node's kubelet on 10250: Cilium
+# gives node addresses the host identity (the node it runs on) or
+# remote-node (any other, such as the minecraft pool's), not a CIDR one.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: victoria-metrics-cluster
+  namespace: monitoring
+spec:
+  endpointSelector:
+    matchLabels:
+      app: victoria-metrics
+  egress:
+    - toEntities:
+        - kube-apiserver
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+    - toEntities:
+        - host
+        - remote-node
+      toPorts:
+        - ports:
+            - port: "10250"
+              protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: kube-state-metrics-apiserver
+  namespace: monitoring
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: kube-state-metrics
+  egress:
+    - toEntities:
+        - kube-apiserver
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP

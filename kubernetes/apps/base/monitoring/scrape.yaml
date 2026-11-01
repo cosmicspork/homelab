@@ -1,0 +1,69 @@
+# VictoriaMetrics' scrape config (Prometheus format). Self-metrics come from
+# -selfScrapeInterval, not a job here.
+global:
+  scrape_interval: 30s
+  scrape_timeout: 10s
+
+scrape_configs:
+  # Per-container CPU, memory, network and disk from each kubelet's cAdvisor.
+  # Node discovery picks up the minecraft pool's node whenever it exists, so
+  # the server is covered while it is awake. DOKS kubelet serving
+  # certificates are signed by the cluster CA with the InternalIP as a SAN
+  # (see infrastructure/controllers/metrics-server), so TLS is verified.
+  - job_name: kubelet-cadvisor
+    scheme: https
+    metrics_path: /metrics/cadvisor
+    kubernetes_sd_configs:
+      - role: node
+    bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+    tls_config:
+      ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+    relabel_configs:
+      - source_labels: [__meta_kubernetes_node_name]
+        target_label: node
+      - source_labels: [__meta_kubernetes_node_label_doks_digitalocean_com_node_pool]
+        target_label: node_pool
+    metric_relabel_configs:
+      # cAdvisor exports a few hundred series per container; keep the ones
+      # that answer "what used how much". container_spec_* gives the limit
+      # to compare against.
+      - source_labels: [__name__]
+        regex: container_(cpu_usage_seconds_total|cpu_cfs_periods_total|cpu_cfs_throttled_periods_total|memory_working_set_bytes|memory_rss|memory_cache|memory_failcnt|oom_events_total|spec_memory_limit_bytes|network_receive_bytes_total|network_transmit_bytes_total|fs_reads_bytes_total|fs_writes_bytes_total)|machine_(cpu_cores|memory_bytes)
+        action: keep
+      # The runtime's container ID: unique per restart and already implied by
+      # namespace, pod, container and id.
+      - regex: name
+        action: labeldrop
+
+  # Node totals as the kubelet reports them for eviction decisions.
+  - job_name: kubelet-resource
+    scheme: https
+    metrics_path: /metrics/resource
+    kubernetes_sd_configs:
+      - role: node
+    bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+    tls_config:
+      ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+    relabel_configs:
+      - source_labels: [__meta_kubernetes_node_name]
+        target_label: node
+      - source_labels: [__meta_kubernetes_node_label_doks_digitalocean_com_node_pool]
+        target_label: node_pool
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: node_(cpu_usage_seconds_total|memory_working_set_bytes|swap_usage_bytes)
+        action: keep
+
+  # Requests, limits, restarts, phases and pod labels. The exporter already
+  # labels each series with the object's own namespace and pod.
+  - job_name: kube-state-metrics
+    honor_labels: true
+    static_configs:
+      - targets: [kube-state-metrics.monitoring.svc:8080]
+
+  # Whether the Minecraft server answers and how many players are on. It
+  # pings the server on each scrape, so a slower interval is plenty.
+  - job_name: mc-monitor
+    scrape_interval: 60s
+    static_configs:
+      - targets: [mc-monitor.minecraft.svc:8080]

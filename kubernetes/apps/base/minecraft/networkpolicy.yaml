@@ -46,7 +46,7 @@ spec:
         - protocol: TCP
           port: 25565
 ---
-# In: only mc-router. Out: the internet on 443, for the server pack and
+# In: mc-router and mc-monitor's status pings. Out: the internet on 443, for the server pack and
 # NeoForge downloads, Mojang's session server (online-mode logins) and spark
 # report uploads.
 apiVersion: networking.k8s.io/v1
@@ -64,6 +64,9 @@ spec:
         - podSelector:
             matchLabels:
               app: mc-router
+        - podSelector:
+            matchLabels:
+              app: mc-monitor
       ports:
         - protocol: TCP
           port: 25565
@@ -132,6 +135,49 @@ spec:
         - podSelector:
             matchLabels:
               app: mc-router
+      ports:
+        - protocol: TCP
+          port: 25565
+---
+# In: VictoriaMetrics' scrapes. Out: DNS and the server's status port.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: mc-monitor
+  namespace: minecraft
+spec:
+  podSelector:
+    matchLabels:
+      app: mc-monitor
+  policyTypes: ["Ingress", "Egress"]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+          podSelector:
+            matchLabels:
+              app: victoria-metrics
+      ports:
+        - protocol: TCP
+          port: 8080
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - to:
+        - podSelector:
+            matchLabels:
+              app: hearth
       ports:
         - protocol: TCP
           port: 25565

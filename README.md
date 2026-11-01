@@ -27,6 +27,7 @@ GitOps-managed Kubernetes cluster running on DigitalOcean. Flux watches this rep
 | FreshRSS | `rss.0x69.xyz` | Raw Deployment + PVC |
 | Minecraft (Hearth & Hollow) | `mc.0x69.xyz` (game), `mc-wake.0x69.xyz` | Raw StatefulSet + PVC on a 0-1 node pool, mc-router, wake page |
 | external-dns | n/a | Helm chart (kubernetes-sigs), Cloudflare provider |
+| Monitoring | n/a (port-forward) | VictoriaMetrics single-node + PVC, kube-state-metrics Helm chart |
 
 ### cloudflared
 The cluster's only way in. Two replicas hold outbound connections to Cloudflare for the `homelab` tunnel, and `kubernetes/apps/production/cloudflared/config.yaml` maps each public hostname to its Service (generated into a hash-suffixed ConfigMap, so a change rolls the pods). The tunnel credentials are the SOPS secret beside the Deployment. Access applications and service tokens live in the Zero Trust dashboard, not in this repo.
@@ -44,6 +45,7 @@ A whitelisted server for the [Hearth & Hollow](https://github.com/cosmicspork/he
 - **The server** runs alone on the `minecraft` node pool (`s-4vcpu-8gb`, autoscaled 0-1, label and taint `workload=minecraft`), so that node exists only while someone plays. From asleep, a join takes roughly the new node's boot, the volume attach, the image pull and about 30 s of server start.
 - **The wake page** (`mc-wake.0x69.xyz`) shows whether the server is up and wakes it, so it boots while players launch the game. It does that by logging in to mc-router the way a client would, so it needs no API access. It sits behind Access because it is optional: joining wakes the server too, so the game itself stays reachable without a login, and only the players in the Access policy can wake it from the page.
 - **DNS**: external-dns publishes `mc.0x69.xyz` (the node mc-router runs on) and the `_minecraft._tcp` SRV record for the NodePort as DNS-only Cloudflare records, and republishes them when an upgrade replaces the node.
+- **Metrics**: `mc-monitor` pings the `hearth` Service each minute for VictoriaMetrics (see Monitoring): whether it answers, its response time and players online. It goes around mc-router, so its pings never keep the server awake.
 - **Updates**: Renovate tracks the pack's GitHub releases through `PACK_VERSION` and never automerges them (or the itzg images): a pack release is merged once CurseForge has approved the matching client.
 
 Outside this repo: the `minecraft` node pool, the `homelab-minecraft` cloud firewall (TCP 30565 inbound on the cluster's worker tag; the DOKS-managed firewall admits nothing from outside), the Cloudflare API token in `external-dns/secret.yaml` (Zone:DNS:Edit and Zone:Zone:Read on `0x69.xyz`), the proxied `mc-wake` tunnel CNAME, and the `mc-wake` Access application (its policy lists the players).
@@ -51,6 +53,35 @@ Outside this repo: the `minecraft` node pool, the `homelab-minecraft` cloud fire
 The world lives on the `hearth-data` volume. The pod's `world-guard` init container waits until `/data/world/level.dat` exists, so an empty volume never generates a new world: to import one, copy it in with `kubectl cp <world-dir> minecraft/hearth-0:/data/world -c world-guard` while the guard is waiting. Simple Backups writes zips to `/data/simplebackups` on the same volume, so take a volume snapshot now and then.
 
 Server console commands (game rules, Chunky, `whitelist add`) go through `kubectl -n minecraft exec hearth-0 -c server -- mc-send-to-console <command>` while it is awake; output lands in the pod log.
+
+### Monitoring
+Metrics history for sizing decisions: how much each pod uses against what it reserves, how heavy tracon's harness pods are, and how often and how long the Minecraft server is awake. metrics-server only answers `kubectl top` for the current moment; this keeps 90 days.
+
+- **VictoriaMetrics** (single-node) scrapes everything itself every 30 s and stores it on a 5Gi volume: each kubelet's cAdvisor (per-container CPU, memory, network, disk, trimmed to the series worth keeping) and resource endpoint (node totals), kube-state-metrics, and mc-monitor. Node discovery includes the `minecraft` pool's node whenever it exists. It scrapes kubelets directly with only `nodes/metrics`, not through the API server's node proxy, which would need `nodes/proxy`.
+- **kube-state-metrics** turns object state into series: requests and limits, restarts, phases, replica counts, and pod labels (`kube_pod_labels`, limited to `app` and the `tracon.dev/*` keys).
+- **mc-monitor** lives in the `minecraft` namespace (see above).
+
+Nothing exposes it publicly. To query, port-forward and open the built-in UI:
+
+```bash
+kubectl -n monitoring port-forward svc/victoria-metrics 8428
+# http://localhost:8428/vmui
+```
+
+Starting points (MetricsQL, a superset of PromQL):
+
+```
+# Node memory working set, by node pool
+node_memory_working_set_bytes
+# Memory used against requested, per namespace
+sum by (namespace) (container_memory_working_set_bytes{container!=""})
+  / sum by (namespace) (kube_pod_container_resource_requests{resource="memory"})
+# Each tracon harness pod's memory, peak over the window
+max_over_time(container_memory_working_set_bytes{namespace="tracon-node", container!=""}[1d])
+# When the Minecraft server was awake, and who was on
+kube_statefulset_replicas{namespace="minecraft", statefulset="hearth"}
+minecraft_status_players_online_count
+```
 
 ## Repository structure
 
@@ -68,14 +99,16 @@ kubernetes/
       cloudflared/
       immich/
       freshrss/
-      minecraft/             # Hearth & Hollow server, mc-router and the wake page
+      minecraft/             # Hearth & Hollow server, mc-router, the wake page and mc-monitor
       external-dns/          # Cloudflare DNS records for NodePort Services
+      monitoring/            # VictoriaMetrics, its scrape config, kube-state-metrics
     production/              # Production overlays and environment-specific resources
       cloudflared/           # Tunnel config (config.yaml): public hostname -> Service
       immich/
       freshrss/
       minecraft/
       external-dns/
+      monitoring/
 scripts/
   buildkit-pki.sh            # Issues tracon-build's mTLS certificates as SOPS secrets
   validate.sh                # Renders the manifests and runs the checks CI requires
