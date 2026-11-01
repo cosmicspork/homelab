@@ -21,6 +21,8 @@ ROUTER_PORT = int(os.environ.get("ROUTER_PORT", "25565"))
 SERVER_ADDRESS = os.environ["SERVER_ADDRESS"]
 # mc-router's reply while the server is down; the same ConfigMap value it uses.
 ASLEEP_MOTD = os.environ["AUTO_SCALE_ASLEEP_MOTD"]
+# Its reply while a wake is in progress.
+LOADING_MOTD = os.environ["AUTO_SCALE_LOADING_MOTD"]
 # 767 is 1.21 and 1.21.1. mc-router only reads the handshake, so a mismatch
 # matters only when the ping reaches the real server, which answers anyway.
 PROTOCOL = int(os.environ.get("PROTOCOL_VERSION", "767"))
@@ -119,9 +121,14 @@ def motd_text(description):
 
 
 def is_online(info):
-    # While the server is down (asleep or still starting), mc-router answers
-    # itself with its asleep MOTD, so that message is the only reliable tell.
-    return info is not None and motd_text(info.get("description")) != ASLEEP_MOTD
+    # While the server is down, mc-router answers itself: with its loading MOTD
+    # while a wake is in progress, otherwise its asleep MOTD. Those messages
+    # are the only reliable tell.
+    return info is not None and motd_text(info.get("description")) not in (ASLEEP_MOTD, LOADING_MOTD)
+
+
+def is_waking(info):
+    return info is not None and motd_text(info.get("description")) == LOADING_MOTD
 
 
 # The scene is the pack icon (hearth-and-hollow assets/icon.svg) widened to a
@@ -377,7 +384,7 @@ class Handler(BaseHTTPRequestHandler):
                 detail=f'<p class="detail">{html.escape(detail)}</p>',
                 motd=f'<p class="motd">{html.escape(motd)}</p>' if motd else "",
             )
-        elif self.path == "/?woke=1":
+        elif is_waking(info) or self.path == "/?woke=1":
             page.update(
                 scene="waking",
                 title="Waking up",
