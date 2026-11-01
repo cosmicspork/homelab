@@ -14,6 +14,12 @@ cd "$(dirname "$0")/.."
 # Patch releases share a schema set; the minor tracks the cluster.
 K8S_VERSION=1.35.0
 CRD_SCHEMAS='https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'
+# The catalog's Cilium 1.20.2 schemas use a \uXXXX regex that Go's regexp
+# (and so kubeconform) cannot compile, which it reports as "could not find
+# schema" (datreeio/CRDs-catalog#1060). Cilium kinds come from the commit before
+# that update; other groups miss here and fall through to the catalog. Drop
+# this once the issue is fixed.
+CILIUM_SCHEMAS='https://raw.githubusercontent.com/datreeio/CRDs-catalog/ea03cc2abb64ddc0a927c1e3d48a3d0abf66a3de/cilium.io/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'
 
 out=$(mktemp -d)
 trap 'rm -rf "$out"' EXIT
@@ -39,6 +45,7 @@ yq ea 'del(.sops)' "$out"/*.yaml |
   kubeconform -strict -summary \
     -kubernetes-version "$K8S_VERSION" \
     -schema-location default \
+    -schema-location "$CILIUM_SCHEMAS" \
     -schema-location "$CRD_SCHEMAS"
 
 echo "--- kube-linter"
