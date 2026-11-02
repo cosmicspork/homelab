@@ -8,7 +8,10 @@
 # record (`cloudflared tunnel route dns homelab <host>`), and an Access
 # application in Zero Trust unless the app is meant to be reachable without one.
 #
-# Access (Zero Trust) sits in front of rss, tracon-node and mc-wake. immich,
+# Access (Zero Trust) sits in front of rss, tracon-node, mc-wake and metrics.
+# metrics also has cloudflared check the Access token itself (originRequest
+# below), so the hostname fails closed if its Access application is ever
+# missing or changed: VictoriaMetrics has no login of its own. immich,
 # pager, svastha-relay and tracon-hub are left open by design: their clients
 # are a mobile app, an extension, end-to-end encrypted PWAs and signed node
 # requests, none of which can complete a browser login.
@@ -31,4 +34,12 @@ ingress:
     service: http://tracon-node.tracon-node.svc.cluster.local
   - hostname: mc-wake.0x69.xyz
     service: http://wake.minecraft.svc.cluster.local
+  - hostname: metrics.0x69.xyz
+    service: http://victoria-metrics.monitoring.svc.cluster.local:8428
+    originRequest:
+      access:
+        required: true
+        teamName: TEAM_NAME
+        audTag:
+          - AUD_TAG
   - service: http_status:404

@@ -11,7 +11,7 @@ GitOps-managed Kubernetes cluster running on DigitalOcean. Flux watches this rep
 | Provider | DigitalOcean Kubernetes |
 | Storage class | `do-block-storage-retain` (block volumes survive PVC deletion — manual cleanup required) |
 | Ingress | Cloudflare Tunnel (`cloudflared`, outbound only; no load balancer) for HTTP. The one exception is the Minecraft NodePort (30565), admitted by its own cloud firewall |
-| Auth | Cloudflare Access on `rss`, `tracon-node` and `mc-wake` |
+| Auth | Cloudflare Access on `rss`, `tracon-node`, `mc-wake` and `metrics` |
 | Network | A NetworkPolicy on every app pod (only tracon-node keeps open egress, for its proxies), plus a CiliumNetworkPolicy where a pod needs the API server; Pod Security Admission labels on each app namespace |
 | TLS | Public: Cloudflare edge. Internal: buildkit mTLS from `scripts/buildkit-pki.sh` |
 | GitOps | Flux v2 |
@@ -27,7 +27,7 @@ GitOps-managed Kubernetes cluster running on DigitalOcean. Flux watches this rep
 | FreshRSS | `rss.0x69.xyz` | Raw Deployment + PVC |
 | Minecraft (Hearth & Hollow) | `mc.0x69.xyz` (game), `mc-wake.0x69.xyz` | Raw StatefulSet + PVC on a 0-1 node pool, mc-router, wake page |
 | external-dns | n/a | Helm chart (kubernetes-sigs), Cloudflare provider |
-| Monitoring | n/a (port-forward) | VictoriaMetrics single-node + PVC, kube-state-metrics Helm chart |
+| Monitoring | `metrics.0x69.xyz` | VictoriaMetrics single-node + PVC, kube-state-metrics Helm chart |
 
 ### cloudflared
 The cluster's only way in. Two replicas hold outbound connections to Cloudflare for the `homelab` tunnel, and `kubernetes/apps/production/cloudflared/config.yaml` maps each public hostname to its Service (generated into a hash-suffixed ConfigMap, so a change rolls the pods). The tunnel credentials are the SOPS secret beside the Deployment. Access applications and service tokens live in the Zero Trust dashboard, not in this repo.
@@ -61,7 +61,9 @@ Metrics history for sizing decisions: how much each pod uses against what it res
 - **kube-state-metrics** turns object state into series: requests and limits, restarts, phases, replica counts, and pod labels (`kube_pod_labels`, limited to `app` and the `tracon.dev/*` keys).
 - **mc-monitor** lives in the `minecraft` namespace (see above).
 
-Nothing exposes it publicly. To query, port-forward and open the built-in UI:
+The query UI is at `https://metrics.0x69.xyz/vmui`, behind Access. VictoriaMetrics has no login of its own, so cloudflared also checks the Access token for that hostname (`originRequest.access` in the tunnel config) and refuses requests without one, so the route fails closed if the Access application is ever missing or changed. Whoever passes Access can query and ingest; the admin endpoints (delete, snapshot, reload, flags, config, pprof, cache resets) also need `?authKey=` with the key in `monitoring/secret.yaml`. A port-forward skips Access (the admin key still applies). Outside this repo: the proxied `metrics` tunnel CNAME and its Access application, whose team name and AUD tag the tunnel config must match.
+
+To skip the tunnel:
 
 ```bash
 kubectl -n monitoring port-forward svc/victoria-metrics 8428

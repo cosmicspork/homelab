@@ -1,10 +1,12 @@
 # Metrics history for the cluster: per-container CPU and memory from each
 # kubelet, object state from kube-state-metrics, and the Minecraft server's
 # status from mc-monitor. Single-node VictoriaMetrics scrapes them itself
-# (scrape.yaml), so there is no separate agent, and serves its own query UI.
-# Nothing exposes it: reach it with
-#   kubectl -n monitoring port-forward svc/victoria-metrics 8428
-# and open http://localhost:8428/vmui.
+# (scrape.yaml), so there is no separate agent, and serves its own query UI
+# at https://metrics.0x69.xyz/vmui, behind Cloudflare Access.
+#
+# VictoriaMetrics has no login of its own, so whoever passes Access can
+# query and ingest. The admin endpoints (delete, snapshot, reload, flags,
+# config, pprof, cache resets) also need ?authKey= from secret.yaml.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -40,6 +42,20 @@ spec:
             - -promscrape.config=/etc/victoria-metrics/scrape.yaml
             - -selfScrapeInterval=60s
             - -httpListenAddr=:8428
+            # Every admin endpoint's key. -metricsAuthKey covers /metrics too;
+            # -selfScrapeInterval reads its own metrics without HTTP.
+            - -configAuthKey=file:///etc/victoria-metrics-auth/admin-key
+            - -deleteAuthKey=file:///etc/victoria-metrics-auth/admin-key
+            - -flagsAuthKey=file:///etc/victoria-metrics-auth/admin-key
+            - -forceFlushAuthKey=file:///etc/victoria-metrics-auth/admin-key
+            - -forceMergeAuthKey=file:///etc/victoria-metrics-auth/admin-key
+            - -logNewSeriesAuthKey=file:///etc/victoria-metrics-auth/admin-key
+            - -metricNamesStatsResetAuthKey=file:///etc/victoria-metrics-auth/admin-key
+            - -metricsAuthKey=file:///etc/victoria-metrics-auth/admin-key
+            - -pprofAuthKey=file:///etc/victoria-metrics-auth/admin-key
+            - -reloadAuthKey=file:///etc/victoria-metrics-auth/admin-key
+            - -search.resetCacheAuthKey=file:///etc/victoria-metrics-auth/admin-key
+            - -snapshotAuthKey=file:///etc/victoria-metrics-auth/admin-key
           securityContext:
             readOnlyRootFilesystem: true
             allowPrivilegeEscalation: false
@@ -53,6 +69,9 @@ spec:
               mountPath: /storage
             - name: scrape
               mountPath: /etc/victoria-metrics
+              readOnly: true
+            - name: auth
+              mountPath: /etc/victoria-metrics-auth
               readOnly: true
           resources:
             # A few thousand active series need roughly 100Mi. VictoriaMetrics
@@ -81,6 +100,9 @@ spec:
         - name: scrape
           configMap:
             name: victoria-metrics-scrape
+        - name: auth
+          secret:
+            secretName: victoria-metrics-auth
 ---
 apiVersion: v1
 kind: Service
