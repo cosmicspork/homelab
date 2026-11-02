@@ -19,6 +19,10 @@ configMapGenerator:
     namespace: minecraft
     envs:
       - mc-router.env
+  - name: hearth-config
+    namespace: minecraft
+    files:
+      - simplebackups-common.toml
   - name: wake
     namespace: minecraft
     files:

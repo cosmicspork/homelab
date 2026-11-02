@@ -1,6 +1,6 @@
-# The server directory: world, pack files, ops/whitelist and Simple Backups'
-# zips (every 2 hours while it runs, newest 10 kept), so sized for those
-# rather than the ~320Mi world.
+# The server directory: world, pack files and ops/whitelist. Sized when it
+# also held Simple Backups' zips, which are off now that VolSync copies the
+# volume to R2.
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
