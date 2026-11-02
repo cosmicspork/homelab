@@ -1,0 +1,37 @@
+# VolSync backs up each app's volumes to R2 with restic (see the
+# ReplicationSources in apps/base/*/backup.yaml). The controller only talks to
+# the API server; the mover Jobs it creates run in the app namespaces, as the
+# app's own user, and need their own egress there.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: volsync
+  namespace: volsync-system
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: volsync
+      version: 0.17.0
+      sourceRef:
+        kind: HelmRepository
+        name: backube
+        namespace: flux-system
+      interval: 24h
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      strategy: rollback
+      retries: 3
+  values:
+    # The chart default (100m, 1Gi limit) is generous for a controller
+    # watching a handful of sources.
+    resources:
+      requests:
+        cpu: 10m
+        memory: 64Mi
+      limits:
+        memory: 256Mi

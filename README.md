@@ -10,6 +10,7 @@ GitOps-managed Kubernetes cluster running on DigitalOcean. Flux watches this rep
 |---|---|
 | Provider | DigitalOcean Kubernetes |
 | Storage class | `do-block-storage-retain` (block volumes survive PVC deletion — manual cleanup required) |
+| Backups | VolSync (restic) copies every stateful volume to Cloudflare R2 (see Backups) |
 | Ingress | Cloudflare Tunnel (`cloudflared`, outbound only; no load balancer) for HTTP. The one exception is the Minecraft NodePort (30565), admitted by its own cloud firewall |
 | Auth | Cloudflare Access on `rss`, `tracon-node`, `mc-wake` and `metrics` |
 | Network | A NetworkPolicy on every app pod (only tracon-node keeps open egress, for its proxies), plus a CiliumNetworkPolicy where a pod needs the API server; Pod Security Admission labels on each app namespace |
@@ -50,7 +51,7 @@ A whitelisted server for the [Hearth & Hollow](https://github.com/cosmicspork/he
 
 Outside this repo: the `minecraft` node pool, the `homelab-minecraft` cloud firewall (TCP 30565 inbound on the cluster's worker tag; the DOKS-managed firewall admits nothing from outside), the Cloudflare API token in `external-dns/secret.yaml` (Zone:DNS:Edit and Zone:Zone:Read on `0x69.xyz`), the proxied `mc-wake` tunnel CNAME, and the `mc-wake` Access application (its policy lists the players).
 
-The world lives on the `hearth-data` volume. The pod's `world-guard` init container waits until `/data/world/level.dat` exists, so an empty volume never generates a new world: to import one, copy it in with `kubectl cp <world-dir> minecraft/hearth-0:/data/world -c world-guard` while the guard is waiting. Simple Backups writes zips to `/data/simplebackups` on the same volume, so take a volume snapshot now and then.
+The world lives on the `hearth-data` volume. The pod's `world-guard` init container waits until `/data/world/level.dat` exists, so an empty volume never generates a new world: to import one, copy it in with `kubectl cp <world-dir> minecraft/hearth-0:/data/world -c world-guard` while the guard is waiting. Simple Backups writes zips to `/data/simplebackups` on the same volume; VolSync copies the whole volume, zips included, to R2 every hour (see Backups).
 
 Server console commands (game rules, Chunky, `whitelist add`) go through `kubectl -n minecraft exec hearth-0 -c server -- mc-send-to-console <command>` while it is awake; output lands in the pod log.
 
@@ -96,6 +97,7 @@ kubernetes/
   infrastructure/
     controllers/             # Cluster-wide operators and controllers
       metrics-server/        # Resource Metrics API (kubectl top); HelmRelease lives in kube-system
+      volsync/               # Volume backups to R2 (restic mover); sources live in each app's backup.yaml
   apps/
     base/                    # Environment-agnostic base manifests
       cloudflared/
@@ -123,7 +125,7 @@ Flux reconciliation order: `infrastructure` → `apps` (enforced via `dependsOn`
 
 ## Validation
 
-`scripts/validate.sh` renders what Flux applies and fails if any Secret is not SOPS-encrypted, if an object doesn't match its schema (`kubeconform -strict`), or if a workload fails `kube-linter` (`.kube-linter.yaml`, which also requires every pod to be selected by a NetworkPolicy). The `validate` workflow runs it on every pull request and on `main`; the `main` ruleset requires it, and Renovate automerges minor and patch updates only once it passes. An object that can't meet a lint check carries an `ignore-check.kube-linter.io/<check>` annotation saying why. Run it locally with `kustomize`, `kubeconform`, `kube-linter` and `yq` on PATH. The workflow pins those tools by version and checksum, so they are bumped by hand.
+`scripts/validate.sh` renders what Flux applies and fails if any Secret is not SOPS-encrypted, if a SOPS file holds more than one document (Flux decrypts objects one at a time), if an object doesn't match its schema (`kubeconform -strict`), or if a workload fails `kube-linter` (`.kube-linter.yaml`, which also requires every pod to be selected by a NetworkPolicy). The `validate` workflow runs it on every pull request and on `main`; the `main` ruleset requires it, and Renovate automerges minor and patch updates only once it passes. An object that can't meet a lint check carries an `ignore-check.kube-linter.io/<check>` annotation saying why. Run it locally with `kustomize`, `kubeconform`, `kube-linter` and `yq` on PATH. The workflow pins those tools by version and checksum, so they are bumped by hand.
 
 Nothing in CI talks to the cluster: the DOKS control plane firewall admits only an allowlist. Flux fetches `main` every 5 minutes (a patch in `flux-system/kustomization.yaml`); `flux reconcile source git flux-system` from an allowed address applies a merge immediately.
 
@@ -161,6 +163,36 @@ kubectl create secret generic sops-age \
 ```
 This secret must exist before Flux can apply any app that has encrypted secrets.
 
+## Backups
+VolSync backs every stateful volume up to the `homelab` R2 bucket with restic, one repository per volume under `volsync/<namespace>/<pvc>`. Restic snapshots are complete point-in-time copies, but chunks are deduplicated, so a run reads only changed files and uploads only new data; hourly runs on an idle volume cost a metadata scan.
+
+Each app's `backup.yaml` holds its ReplicationSource and a `volsync-mover` NetworkPolicy (DNS and 443 out, nothing in); `volsync-secret.yaml` (Immich: one file per volume, since SOPS signs a whole file and Flux decrypts each object on its own) holds the repository URL, the R2 key and the restic password.
+
+| Volume | Schedule (UTC) | Keeps |
+|---|---|---|
+| `minecraft/hearth-data` | hourly at :05 | 24 hourly, 7 daily, 4 weekly |
+| `immich/immich-library` | every 6 h at :15 | 7 daily, 4 weekly, 6 monthly |
+| `immich/immich-postgres-data` | daily 03:30, after Immich's own 02:00 dump into the library | 7 daily, 4 weekly |
+| `pager`, `freshrss`, `svastha`, `svastha-node`, `tracon` (hub), `tracon-node` | hourly, staggered :20 to :45 | 24 hourly, 7 daily, 4 weekly, 6 monthly |
+
+Not backed up: `tracon-build/buildkit-cache` (rebuilds itself) and `monitoring/victoria-metrics-data` (losing history on a move is acceptable).
+
+- **Consistency**: each run snapshots the volume (`copyMethod: Snapshot`, VolumeSnapshotClass `do-block-storage`), backs up a clone of the snapshot and deletes both, so the copy is crash-consistent and the app keeps running. The clone and restic's 1Gi cache use `do-block-storage`, not the retain class, so they don't outlive the run. Each run briefly attaches two extra volumes to the node, which is why the schedules are staggered (a DOKS node takes 15).
+- **Permissions**: in `restricted` namespaces the mover runs as the app's own user, with `fsGroup` and `OnRootMismatch` so the cache volume is writable without a recursive chown of the data. `immich` and `freshrss` (baseline, root-owned files) allow privileged movers through a namespace annotation: root with DAC_OVERRIDE, CHOWN and FOWNER, which baseline permits.
+- **Pruning**: `forget` applies the retention after every run; `prune`, which repacks R2 data, runs every 7 days.
+
+Status: `kubectl get replicationsources -A` shows each source's last sync, its duration and the next one; a failed run leaves the mover's log in `.status.latestMoverStatus`.
+
+To browse a repository from a workstation (needs `restic`):
+```bash
+eval "$(sops -d kubernetes/apps/base/pager/volsync-secret.yaml |
+  yq '.stringData | to_entries | .[] | "export " + .key + "=" + (.value | @sh)')"
+restic snapshots
+restic ls latest
+```
+
+Outside this repo: the `homelab` R2 bucket (no public access) and its R2 API token (Object Read & Write on that bucket only). The restic password is in every `volsync-secret.yaml` and, since those need the age key to read, also in Bitwarden ("homelab k8s volsync restic password", next to the age key). Without the password the backups can't be read.
+
 ## Cluster rebuild procedure
 
 If the cluster needs to be rebuilt from scratch:
@@ -195,7 +227,7 @@ If the cluster needs to be rebuilt from scratch:
    ```
 
 ### Notes on persistent data
-The storage class `do-block-storage-retain` means DigitalOcean block volumes are **not deleted** when their PVC is deleted. On a full cluster rebuild the volumes will still exist in your DO account. To reattach them, recreate the PVs and PVCs with the matching volume IDs before Flux applies. If starting fresh, delete the old volumes in the DO console first to avoid orphaned billing.
+The storage class `do-block-storage-retain` means DigitalOcean block volumes are **not deleted** when their PVC is deleted. On a full cluster rebuild the volumes will still exist in your DO account. To reattach them, recreate the PVs and PVCs with the matching volume IDs before Flux applies. If starting fresh, delete the old volumes in the DO console first to avoid orphaned billing. The R2 backups (see Backups) hold a copy of every stateful volume except the buildkit cache and metrics; restore wiring for a fresh cluster is not in place yet.
 
 ## Adding things
 
@@ -204,8 +236,9 @@ The storage class `do-block-storage-retain` means DigitalOcean block volumes are
 2. Create `kubernetes/apps/production/<app>/` with a `kustomization.yaml` referencing the base, plus any production-specific overlays.
 3. Add the app directory to `kubernetes/apps/production/kustomization.yaml`.
 4. If the app needs secrets, write a `secret.yaml` and run `sops --encrypt --in-place` before committing.
-5. Add a `networkpolicy.yaml`: a namespace-wide default deny, then what the app needs (see `freshrss/` for the shape). Label the namespace with the strictest Pod Security level the image meets.
-6. If the app is public, add a hostname rule to the cloudflared ConfigMap, an egress rule to the app's pod in `cloudflared/networkpolicy.yaml`, run `cloudflared tunnel route dns homelab <host>.0x69.xyz`, and add an Access application in Zero Trust unless the app must be reachable without one.
+5. If it has a volume worth keeping, add a `backup.yaml` and `volsync-secret.yaml` like `pager/`'s, with a schedule that doesn't collide with the others.
+6. Add a `networkpolicy.yaml`: a namespace-wide default deny, then what the app needs (see `freshrss/` for the shape). Label the namespace with the strictest Pod Security level the image meets.
+7. If the app is public, add a hostname rule to the cloudflared ConfigMap, an egress rule to the app's pod in `cloudflared/networkpolicy.yaml`, run `cloudflared tunnel route dns homelab <host>.0x69.xyz`, and add an Access application in Zero Trust unless the app must be reachable without one.
 
 ### A new infrastructure controller
 1. Create `kubernetes/infrastructure/controllers/<name>/` with namespace, HelmRepository, HelmRelease, and `kustomization.yaml`.

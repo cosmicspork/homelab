@@ -1,0 +1,11 @@
+# Default deny for the namespace. The controller takes no connections (its
+# metrics endpoint isn't scraped) and needs only the API server, which a
+# NetworkPolicy can't name (networkpolicy-cilium.yaml).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny
+  namespace: volsync-system
+spec:
+  podSelector: {}
+  policyTypes: ["Ingress", "Egress"]

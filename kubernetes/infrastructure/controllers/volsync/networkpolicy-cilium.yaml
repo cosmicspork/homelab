@@ -1,0 +1,16 @@
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: volsync-apiserver
+  namespace: volsync-system
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: volsync
+  egress:
+    - toEntities:
+        - kube-apiserver
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP

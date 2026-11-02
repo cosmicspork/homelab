@@ -6,3 +6,5 @@ resources:
   - secret.yaml
   - deployment.yaml
   - networkpolicy.yaml
+  - volsync-secret.yaml
+  - backup.yaml
