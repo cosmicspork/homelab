@@ -100,6 +100,7 @@ kubernetes/
       volsync/               # Volume backups to R2 (restic mover); sources live in each app's backup.yaml
   apps/
     base/                    # Environment-agnostic base manifests
+                             # (<app>/restore/: Component that fills the app's volumes from R2)
       cloudflared/
       immich/
       freshrss/
@@ -193,6 +194,39 @@ restic ls latest
 
 Outside this repo: the `homelab` R2 bucket (no public access) and its R2 API token (Object Read & Write on that bucket only). The restic password is in every `volsync-secret.yaml` and, since those need the age key to read, also in Bitwarden ("homelab k8s volsync restic password", next to the age key). Without the password the backups can't be read.
 
+### Restoring a cluster
+
+Each backed-up app has a `restore/` Kustomize Component. It adds a ReplicationDestination per volume (a one-time manual trigger, `restore-once`) and patches `dataSourceRef` onto the app's claim. VolSync's volume populator restores the newest snapshot and only then binds the claim, so the app's pods wait in Pending until their data is in place. `scripts/validate.sh` renders every component and fails if a ReplicationSource has no matching restore.
+
+Only a cluster whose claims don't exist yet may include the components. Kubernetes won't add `dataSourceRef` to an existing claim, and won't remove it later either, so a cluster that was built from backups keeps its components for good. The production overlay doesn't include them.
+
+To move to a new cluster, or rebuild one:
+
+1. **Stop writes in the old cluster** if it is still running: `flux suspend kustomization apps`, scale every app to zero, then take a final backup of each volume and wait for it to finish:
+   ```bash
+   kubectl -n pager patch replicationsource pager-data --type merge \
+     -p '{"spec":{"trigger":{"manual":"final"}}}'
+   kubectl get replicationsources -A -o custom-columns=NS:.metadata.namespace,NAME:.metadata.name,DONE:.status.lastManualSync
+   ```
+   A manual trigger also stops the schedule, so nothing newer lands in R2 afterwards. Stopping the old apps matters beyond the data: the tunnel credentials would load-balance across both clusters, and two external-dns instances would fight over the records.
+2. **Build the new cluster** (see [Cluster rebuild procedure](#cluster-rebuild-procedure)) with an overlay that lists each app's `restore` component next to its base:
+   ```yaml
+   resources:
+     - ../../base/pager
+   components:
+     - ../../base/pager/restore
+   ```
+3. **Watch the restores.** `kubectl get replicationdestinations -A` shows each one's last sync; `kubectl get pvc -A` shows the claims binding as they finish. In the 2026-11-02 drill most volumes took under a minute, `tracon-state` about 3 minutes and `immich-library` (60 GiB) about 14.
+
+Things learned in that drill:
+
+- **An app that starts on an empty claim poisons `latest`.** Its next backup becomes the newest snapshot, and a later restore brings back the empty volume. The older snapshots are still there under the retention policy; restore one with `restoreAsOf` on the ReplicationDestination. The validate check exists to keep a volume from being left out.
+- **Restore memory grows with file count.** `tracon-state` (510k files) was OOM-killed at 512Mi and peaked at about 1.4Gi, so its ReplicationDestination allows 2Gi. The backup still fits in 512Mi.
+- **A killed or deleted mover leaves stale restic locks**, and the next backup fails at `forget` with "repository is already locked". restic doesn't expire them on its own. Set `spec.restic.unlock` on the ReplicationSource to any new value (a timestamp will do) and the next run unlocks first, or run `restic unlock` from a workstation. Don't run `restic check` against a repository while a mover is using it: it takes an exclusive lock.
+- **DO's CSI driver can stall a quick re-attach.** A mover retried right after a failure waited 12 minutes on `mkfs` errors ("device does not exist") before the volume came up on its own. Allow for it before calling a restore stuck.
+- **Unprivileged restores can't restore root ownership.** In `restricted` namespaces the mover runs as the app's user, so a file the snapshot has as root comes back owned by the app (group and mode are kept). It only affects a few files under `tracon-node`'s `tracon-harness-state`. `immich` and `freshrss` use privileged movers and restore ownership exactly.
+- **Each ReplicationDestination keeps the VolumeSnapshot it restored from** for as long as it exists. That is about 70 GiB of DO snapshots, billed monthly. Deleting a ReplicationDestination doesn't help: Flux recreates it, and it then restores again into a new snapshot (the bound claim is untouched).
+
 ## Cluster rebuild procedure
 
 If the cluster needs to be rebuilt from scratch:
@@ -227,7 +261,7 @@ If the cluster needs to be rebuilt from scratch:
    ```
 
 ### Notes on persistent data
-The storage class `do-block-storage-retain` means DigitalOcean block volumes are **not deleted** when their PVC is deleted. On a full cluster rebuild the volumes will still exist in your DO account. To reattach them, recreate the PVs and PVCs with the matching volume IDs before Flux applies. If starting fresh, delete the old volumes in the DO console first to avoid orphaned billing. The R2 backups (see Backups) hold a copy of every stateful volume except the buildkit cache and metrics; restore wiring for a fresh cluster is not in place yet.
+The storage class `do-block-storage-retain` means DigitalOcean block volumes are **not deleted** when their PVC is deleted. On a full cluster rebuild the volumes will still exist in your DO account. To reattach them, recreate the PVs and PVCs with the matching volume IDs before Flux applies. If starting fresh, delete the old volumes in the DO console first to avoid orphaned billing. The R2 backups (see Backups) hold a copy of every stateful volume except the buildkit cache and metrics; to fill a fresh cluster's volumes from them instead, follow [Restoring a cluster](#restoring-a-cluster).
 
 ## Adding things
 
@@ -236,7 +270,7 @@ The storage class `do-block-storage-retain` means DigitalOcean block volumes are
 2. Create `kubernetes/apps/production/<app>/` with a `kustomization.yaml` referencing the base, plus any production-specific overlays.
 3. Add the app directory to `kubernetes/apps/production/kustomization.yaml`.
 4. If the app needs secrets, write a `secret.yaml` and run `sops --encrypt --in-place` before committing.
-5. If it has a volume worth keeping, add a `backup.yaml` and `volsync-secret.yaml` like `pager/`'s, with a schedule that doesn't collide with the others.
+5. If it has a volume worth keeping, add a `backup.yaml` and `volsync-secret.yaml` like `pager/`'s, with a schedule that doesn't collide with the others, and a `restore/` component like `pager/restore/` (validation fails without one).
 6. Add a `networkpolicy.yaml`: a namespace-wide default deny, then what the app needs (see `freshrss/` for the shape). Label the namespace with the strictest Pod Security level the image meets.
 7. If the app is public, add a hostname rule to the cloudflared ConfigMap, an egress rule to the app's pod in `cloudflared/networkpolicy.yaml`, run `cloudflared tunnel route dns homelab <host>.0x69.xyz`, and add an Access application in Zero Trust unless the app must be reachable without one.
 
