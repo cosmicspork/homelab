@@ -1,0 +1,96 @@
+# Metrics history for the cluster: per-container CPU and memory from each
+# kubelet, object state from kube-state-metrics, and the Minecraft server's
+# status from mc-monitor. Single-node VictoriaMetrics scrapes them itself
+# (scrape.yaml), so there is no separate agent, and serves its own query UI.
+# Nothing exposes it: reach it with
+#   kubectl -n monitoring port-forward svc/victoria-metrics 8428
+# and open http://localhost:8428/vmui.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: victoria-metrics
+  namespace: monitoring
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: victoria-metrics
+  # Recreate: the data volume is ReadWriteOnce.
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: victoria-metrics
+    spec:
+      serviceAccountName: victoria-metrics
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        fsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: victoria-metrics
+          image: victoriametrics/victoria-metrics:v1.155.0
+          args:
+            - -storageDataPath=/storage
+            - -retentionPeriod=90d
+            - -promscrape.config=/etc/victoria-metrics/scrape.yaml
+            - -selfScrapeInterval=60s
+            - -httpListenAddr=:8428
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          ports:
+            - name: http
+              containerPort: 8428
+          volumeMounts:
+            - name: data
+              mountPath: /storage
+            - name: scrape
+              mountPath: /etc/victoria-metrics
+              readOnly: true
+          resources:
+            # A few thousand active series need roughly 100Mi. VictoriaMetrics
+            # sizes its caches to 60% of the memory limit, so the limit is
+            # also what it will grow into, not only a ceiling.
+            requests:
+              cpu: 25m
+              memory: 128Mi
+            limits:
+              memory: 512Mi
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 15
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 30
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: victoria-metrics-data
+        - name: scrape
+          configMap:
+            name: victoria-metrics-scrape
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: victoria-metrics
+  namespace: monitoring
+spec:
+  selector:
+    app: victoria-metrics
+  ports:
+    - name: http
+      port: 8428
+      targetPort: http

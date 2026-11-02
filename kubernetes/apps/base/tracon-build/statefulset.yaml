@@ -92,15 +92,17 @@ spec:
             # CAP_SETGID must stay in the bounding set.
           resources:
             # Sized to share one s-4vcpu-8gb node with the tracon node, its
-            # harness pods and the other apps (about 1.6 CPU / 2.2Gi already
-            # requested). The request guarantees a build half a core and the
-            # daemon plus a typical composer or npm step; with no CPU limit,
-            # builds still burst onto idle cores. Builds are batch work, so
-            # under contention they yield to interactive sessions rather
-            # than reserve capacity the sessions need.
+            # harness pods and the other apps. The request guarantees a build
+            # half a core; with no CPU limit, builds still burst onto idle
+            # cores. Memory is what limits how many 1Gi harness pods fit
+            # beside everything else, and the daemon idles near 220Mi, so it
+            # reserves only a modest build step and runs larger ones above
+            # its request. Builds are batch work, so under contention they
+            # yield to interactive sessions rather than reserve capacity the
+            # sessions need.
             requests:
               cpu: 500m
-              memory: 1Gi
+              memory: 512Mi
             limits:
               # Enough for a Vite build or a Playwright browser install, and
               # under half the node, so a runaway build is killed inside this

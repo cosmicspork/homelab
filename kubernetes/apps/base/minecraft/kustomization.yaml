@@ -8,6 +8,7 @@ resources:
   - statefulset.yaml
   - mc-router.yaml
   - wake.yaml
+  - mc-monitor.yaml
   - service.yaml
 # Hash-suffixed, so a change rolls mc-router or the wake page on the next
 # reconcile.
