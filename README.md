@@ -8,7 +8,7 @@ GitOps-managed Kubernetes cluster running on DigitalOcean. Flux watches this rep
 
 | Component | Detail |
 |---|---|
-| Provider | DigitalOcean Kubernetes |
+| Provider | DigitalOcean Kubernetes, `ams3` (moved from `nyc1` in November 2026, when nyc1 ran out of capacity to replace nodes) |
 | Storage class | `do-block-storage-retain` (block volumes survive PVC deletion — manual cleanup required) |
 | Backups | VolSync (restic) copies every stateful volume to Cloudflare R2 (see Backups) |
 | Ingress | Cloudflare Tunnel (`cloudflared`, outbound only; no load balancer) for HTTP. The one exception is the Minecraft NodePort (30565), admitted by its own cloud firewall |
@@ -198,7 +198,7 @@ Outside this repo: the `homelab` R2 bucket (no public access) and its R2 API tok
 
 Each backed-up app has a `restore/` Kustomize Component. It adds a ReplicationDestination per volume (a one-time manual trigger, `restore-once`) and patches `dataSourceRef` onto the app's claim. VolSync's volume populator restores the newest snapshot and only then binds the claim, so the app's pods wait in Pending until their data is in place. `scripts/validate.sh` renders every component and fails if a ReplicationSource has no matching restore.
 
-Only a cluster whose claims don't exist yet may include the components. Kubernetes won't add `dataSourceRef` to an existing claim, and won't remove it later either, so a cluster that was built from backups keeps its components for good. The production overlay doesn't include them.
+Only a cluster whose claims don't exist yet may apply the components. Kubernetes won't add `dataSourceRef` to an existing claim, and won't remove it later either, so a cluster that was built from backups keeps its components for good. The production overlay has listed them since the ams3 cluster was built from backups; the nyc1 cluster had Flux suspended before that revision and never applied it.
 
 To move to a new cluster, or rebuild one:
 
@@ -209,13 +209,7 @@ To move to a new cluster, or rebuild one:
    kubectl get replicationsources -A -o custom-columns=NS:.metadata.namespace,NAME:.metadata.name,DONE:.status.lastManualSync
    ```
    A manual trigger also stops the schedule, so nothing newer lands in R2 afterwards. Stopping the old apps matters beyond the data: the tunnel credentials would load-balance across both clusters, and two external-dns instances would fight over the records.
-2. **Build the new cluster** (see [Cluster rebuild procedure](#cluster-rebuild-procedure)) with an overlay that lists each app's `restore` component next to its base:
-   ```yaml
-   resources:
-     - ../../base/pager
-   components:
-     - ../../base/pager/restore
-   ```
+2. **Build the new cluster** (see [Cluster rebuild procedure](#cluster-rebuild-procedure)). The production overlay already lists each app's `restore` component next to its base. The restores start as soon as Flux applies the apps.
 3. **Watch the restores.** `kubectl get replicationdestinations -A` shows each one's last sync; `kubectl get pvc -A` shows the claims binding as they finish. In the 2026-11-02 drill most volumes took under a minute, `tracon-state` about 3 minutes and `immich-library` (60 GiB) about 14.
 
 Things learned in that drill:
@@ -231,7 +225,14 @@ Things learned in that drill:
 
 If the cluster needs to be rebuilt from scratch:
 
-1. **Provision a new DOKS cluster** via DigitalOcean.
+1. **Provision a new DOKS cluster** and recreate what lives on the DigitalOcean side:
+   - A `general-8gb` pool (`s-4vcpu-8gb-amd`, 1 node) and a `minecraft` pool (`s-4vcpu-8gb`, autoscaled 0 to 1, label and taint `workload=minecraft`, `NoSchedule`).
+   - Auto-upgrade off; upgrades are done by hand so a node replacement never surprises a single-node cluster.
+   - The control plane firewall, admitting only the addresses that run `kubectl`.
+   - The DOCR integration (`doctl kubernetes cluster registry add`), which puts the `cosmicspork` pull secret in every namespace. tracon-node's harness images come from the registry.
+   - The new cluster's tag (`k8s:<cluster id>`) on the `homelab-minecraft` cloud firewall, in place of the old one.
+
+   If the old cluster is still up, follow [Restoring a cluster](#restoring-a-cluster) from its first step: the old apps have to be stopped before Flux starts here.
 
 2. **Restore your age private key** to `~/.config/sops/age/keys.txt`.
 
@@ -243,14 +244,15 @@ If the cluster needs to be rebuilt from scratch:
      --from-file=age.agekey=$HOME/.config/sops/age/keys.txt
    ```
 
-4. **Bootstrap Flux** against this repo:
+4. **Install Flux** from this repo's own manifests. If the old cluster is still reachable, copy its deploy key rather than making a new one:
    ```bash
-   flux bootstrap github \
-     --owner=cosmicspork \
-     --repository=homelab \
-     --branch=main \
-     --path=kubernetes/clusters/production
+   kubectl --context=<old> -n flux-system get secret flux-system -o yaml |
+     yq 'del(.metadata.uid, .metadata.resourceVersion, .metadata.creationTimestamp, .metadata.managedFields, .metadata.ownerReferences)' |
+     kubectl apply -f -
+   kubectl apply --server-side -k kubernetes/clusters/production/flux-system
    ```
+   The second apply may need running twice: the first creates the CRDs that its GitRepository and Kustomization need. Without the old cluster, `flux bootstrap github --owner=cosmicspork --repository=homelab --branch=main --path=kubernetes/clusters/production` makes a new deploy key instead; it pushes to `main` only if the Flux version differs from `gotk-components.yaml`, which branch protection would refuse, so use the same Flux CLI version.
+
    Flux will apply everything in order: infrastructure → apps. The tunnel reconnects on its own, since its credentials are in the repo and DNS points at the tunnel, not the cluster.
 
    The rest of the public edge lives in the Cloudflare account, not this repo: the `homelab` tunnel itself, the proxied DNS records (`cloudflared tunnel route dns`), and the Zero Trust Access applications, policies and service tokens. A cluster rebuild leaves them untouched. If the tunnel was deleted, create a new one, replace `secret.yaml` and the tunnel ID in the cloudflared ConfigMap, and re-run `route dns --overwrite-dns` for each hostname.
