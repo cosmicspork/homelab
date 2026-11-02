@@ -5,6 +5,7 @@ resources:
   - networkpolicy.yaml
   - networkpolicy-cilium.yaml
   - rbac.yaml
+  - secret.yaml
   - pvc.yaml
   - victoria-metrics.yaml
   - helmrepository.yaml
