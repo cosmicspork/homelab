@@ -177,8 +177,12 @@ spec:
               mountPath: /data
             - name: tmp
               mountPath: /tmp
+            # One file per subPath: a whole-ConfigMap mount also carries
+            # Kubernetes' ..data link and timestamped directory, which the
+            # image would copy into /data/config on every start.
             - name: config
-              mountPath: /config
+              mountPath: /config/simplebackups-common.toml
+              subPath: simplebackups-common.toml
               readOnly: true
       volumes:
         - name: data
