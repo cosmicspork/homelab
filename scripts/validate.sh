@@ -38,6 +38,17 @@ if [ -n "$plain" ]; then
 fi
 echo "ok"
 
+# SOPS signs a whole file, but Flux decrypts each object on its own, so a file
+# holding several encrypted documents fails to decrypt in the cluster.
+echo "--- One document per SOPS file"
+multi=$({ find kubernetes -name '*.yaml' -exec grep -c '^sops:' {} + || true; } | awk -F: '$NF > 1 { print $1 }')
+if [ -n "$multi" ]; then
+  echo "Files with more than one SOPS-encrypted document (split them):" >&2
+  echo "$multi" >&2
+  exit 1
+fi
+echo "ok"
+
 # The sops block is SOPS's own metadata, not part of the Secret, so strip it
 # before strict validation (which rejects unknown fields).
 echo "--- Schemas"

@@ -7,3 +7,5 @@ resources:
   - secret.yaml
   - deployment.yaml
   - service.yaml
+  - volsync-secret.yaml
+  - backup.yaml

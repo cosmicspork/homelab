@@ -2,6 +2,10 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: immich
+  annotations:
+    # VolSync's backup mover runs as root with DAC_OVERRIDE, CHOWN and FOWNER
+    # (all within baseline) to read the root-owned files and restore owners.
+    volsync.backube/privileged-movers: "true"
   labels:
     # immich-server and Postgres run as root (the library and the data
     # directory are owned by root and postgres respectively, and Postgres's

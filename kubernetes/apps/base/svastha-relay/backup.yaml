@@ -1,0 +1,80 @@
+# Backs the volumes up to R2 with VolSync's restic mover. Each repository and
+# its credentials are in volsync-*secret.yaml; see "Backups" in the README.
+# VolSync's mover Jobs: out to DNS and R2 on 443, nothing in.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: volsync-mover
+  namespace: svastha
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/created-by: volsync
+  policyTypes: ["Ingress", "Egress"]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+              - 169.254.0.0/16
+              - 100.64.0.0/10
+      ports:
+        - protocol: TCP
+          port: 443
+---
+apiVersion: volsync.backube/v1alpha1
+kind: ReplicationSource
+metadata:
+  name: svastha-relay-data
+  namespace: svastha
+spec:
+  sourcePVC: svastha-relay-data
+  trigger:
+    schedule: "30 * * * *"
+  restic:
+    repository: svastha-relay-data-restic
+    copyMethod: Snapshot
+    volumeSnapshotClassName: do-block-storage
+    # The snapshot clone and the restic cache are throwaway: without these
+    # they would inherit the source's retain class and outlive each run.
+    storageClassName: do-block-storage
+    cacheStorageClassName: do-block-storage
+    cacheCapacity: 1Gi
+    pruneIntervalDays: 7
+    retain:
+      hourly: 24
+      daily: 7
+      weekly: 4
+      monthly: 6
+    # The app's own user. fsGroup makes the fresh cache volume writable;
+    # OnRootMismatch skips the data clone, whose root already carries the
+    # app's fsGroup, so its files keep their ctimes and restic skips them.
+    moverSecurityContext:
+      runAsNonRoot: true
+      runAsUser: 65534
+      runAsGroup: 65534
+      fsGroup: 65534
+      fsGroupChangePolicy: OnRootMismatch
+      seccompProfile:
+        type: RuntimeDefault
+    moverResources:
+      requests:
+        cpu: 10m
+        memory: 64Mi
+      limits:
+        memory: 512Mi

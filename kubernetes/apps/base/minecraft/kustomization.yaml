@@ -10,6 +10,8 @@ resources:
   - wake.yaml
   - mc-monitor.yaml
   - service.yaml
+  - volsync-secret.yaml
+  - backup.yaml
 # Hash-suffixed, so a change rolls mc-router or the wake page on the next
 # reconcile.
 configMapGenerator:

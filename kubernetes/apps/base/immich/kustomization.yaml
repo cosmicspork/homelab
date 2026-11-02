@@ -9,3 +9,6 @@ resources:
   - postgres-service.yaml
   - helmrepository.yaml
   - helmrelease.yaml
+  - volsync-library-secret.yaml
+  - volsync-postgres-secret.yaml
+  - backup.yaml
