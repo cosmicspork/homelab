@@ -6,12 +6,16 @@
 # A new hostname needs four things: a rule below, an egress rule to the app's
 # pod in the cloudflared NetworkPolicy (apps/base/cloudflared), a proxied DNS
 # record (`cloudflared tunnel route dns homelab <host>`), and an Access
-# application in Zero Trust unless the app is meant to be reachable without one.
+# application in Zero Trust unless the app is meant to be reachable without one
+# (then its originRequest.access, below).
 #
-# Access (Zero Trust) sits in front of rss, tracon-node, mc-wake and metrics.
-# metrics also has cloudflared check the Access token itself (originRequest
-# below), so the hostname fails closed if its Access application is ever
-# missing or changed: VictoriaMetrics has no login of its own. immich,
+# Access (Zero Trust) sits in front of rss, tracon-node, mc-wake and metrics,
+# and cloudflared checks each one's Access token itself (originRequest.access,
+# the team name plus that application's AUD tag from its overview page). A
+# request without a valid token for that application gets a 403 here, so a
+# hostname fails closed if its Access application is ever missing, deleted or
+# loosened, rather than passing traffic straight to the app. Service-token
+# logins carry the same token, so they pass too. immich,
 # pager, svastha-relay and tracon-hub are left open by design: their clients
 # are a mobile app, an extension, end-to-end encrypted PWAs and signed node
 # requests, none of which can complete a browser login.
@@ -22,6 +26,12 @@ no-autoupdate: true
 ingress:
   - hostname: rss.0x69.xyz
     service: http://freshrss.freshrss.svc.cluster.local
+    originRequest:
+      access:
+        required: true
+        teamName: 0x69xyz
+        audTag:
+          - 6b9e30105ee041ab799e29a369d9b8911279404c63e7a53b1850315d6d2fd6bd
   - hostname: immich.0x69.xyz
     service: http://immich-server.immich.svc.cluster.local:2283
   - hostname: pager.0x69.xyz
@@ -32,14 +42,26 @@ ingress:
     service: http://tracon-hub.tracon.svc.cluster.local
   - hostname: tracon-node.0x69.xyz
     service: http://tracon-node.tracon-node.svc.cluster.local
+    originRequest:
+      access:
+        required: true
+        teamName: 0x69xyz
+        audTag:
+          - c103b8781c4ff113b28d16b783051f1e7649df8852e6bc98ef9490db004701ae
   - hostname: mc-wake.0x69.xyz
     service: http://wake.minecraft.svc.cluster.local
+    originRequest:
+      access:
+        required: true
+        teamName: 0x69xyz
+        audTag:
+          - 377215d1f0dfd52bbd9949519e6c9d00ad5f02a63c53762a3b3a31e0ca88b9af
   - hostname: metrics.0x69.xyz
     service: http://victoria-metrics.monitoring.svc.cluster.local:8428
     originRequest:
       access:
         required: true
-        teamName: TEAM_NAME
+        teamName: 0x69xyz
         audTag:
-          - AUD_TAG
+          - f2e266e57aad30d3edf5d0eee2905a79d148b24bc7d9b2546475ec47efb059c6
   - service: http_status:404
