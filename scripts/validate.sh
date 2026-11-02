@@ -29,6 +29,21 @@ kustomize build kubernetes/apps/production >"$out/apps.yaml"
 cp kubernetes/clusters/production/apps.yaml "$out/flux-apps.yaml"
 cp kubernetes/clusters/production/infrastructure.yaml "$out/flux-infrastructure.yaml"
 
+# No overlay includes the restore components until a cluster is built from
+# backups, so render each one onto its app here to check it still applies.
+# Only the objects it adds or changes are kept.
+# kustomize refuses absolute paths, hence the link.
+ln -s "$PWD/kubernetes" "$out/kubernetes"
+for component in kubernetes/apps/base/*/restore; do
+  app=$(basename "$(dirname "$component")")
+  overlay="$out/restore-overlays/$app"
+  mkdir -p "$overlay"
+  printf 'apiVersion: kustomize.config.k8s.io/v1beta1\nkind: Kustomization\nresources:\n  - ../../%s\ncomponents:\n  - ../../%s\n' \
+    "kubernetes/apps/base/$app" "$component" >"$overlay/kustomization.yaml"
+  kustomize build "$overlay" |
+    yq 'select(.kind == "ReplicationDestination" or .spec.dataSourceRef != null)' >"$out/restore-$app.yaml"
+done
+
 echo "--- Secrets are SOPS-encrypted"
 plain=$(yq ea 'select(.kind == "Secret" and .sops == null) | .metadata.namespace + "/" + .metadata.name' "$out"/*.yaml)
 if [ -n "$plain" ]; then
@@ -48,6 +63,21 @@ if [ -n "$multi" ]; then
   exit 1
 fi
 echo "ok"
+
+# A volume that is backed up but missing from the restore wiring would come
+# up empty on a new cluster, and its first backup would then be an empty
+# snapshot.
+echo "--- Every backed-up volume has restore wiring"
+sources=$(yq e -N 'select(.kind == "ReplicationSource") | .metadata.namespace + "/" + .spec.sourcePVC' "$out/apps.yaml" | sort)
+dests=$(yq e -N 'select(.kind == "ReplicationDestination") | .metadata.namespace + "/" + .metadata.name' "$out"/restore-*.yaml | sort)
+claims=$(yq e -N 'select(.kind == "PersistentVolumeClaim" and .spec.dataSourceRef.kind == "ReplicationDestination" and .spec.dataSourceRef.name == .metadata.name) | .metadata.namespace + "/" + .metadata.name' "$out"/restore-*.yaml | sort)
+if [ "$sources" != "$dests" ] || [ "$sources" != "$claims" ]; then
+  echo "ReplicationSources, ReplicationDestinations and claims with a dataSourceRef differ:" >&2
+  diff <(echo "$sources") <(echo "$dests") >&2 || true
+  diff <(echo "$sources") <(echo "$claims") >&2 || true
+  exit 1
+fi
+echo "ok ($(echo "$sources" | wc -l) volumes)"
 
 # The sops block is SOPS's own metadata, not part of the Secret, so strip it
 # before strict validation (which rejects unknown fields).

@@ -1,0 +1,34 @@
+apiVersion: volsync.backube/v1alpha1
+kind: ReplicationDestination
+metadata:
+  name: freshrss-data
+  namespace: freshrss
+spec:
+  # Runs once, when created: restores the newest snapshot, which the PVC's
+  # dataSourceRef then fills from. Changing the value would restore again,
+  # but only into a new snapshot; a bound claim is never refilled.
+  trigger:
+    manual: restore-once
+  restic:
+    repository: freshrss-data-restic
+    copyMethod: Snapshot
+    volumeSnapshotClassName: do-block-storage
+    capacity: 5Gi
+    accessModes: ["ReadWriteOnce"]
+    # The restore's working volume and restic cache are throwaway.
+    storageClassName: do-block-storage
+    cacheStorageClassName: do-block-storage
+    cacheCapacity: 1Gi
+    cleanupTempPVC: true
+    cleanupCachePVC: true
+    # Privileged mover (namespace annotation), as in backup.yaml, so file
+    # ownership is restored exactly.
+    moverSecurityContext:
+      seccompProfile:
+        type: RuntimeDefault
+    moverResources:
+      requests:
+        cpu: 10m
+        memory: 64Mi
+      limits:
+        memory: 512Mi

@@ -1,0 +1,20 @@
+# Fills this app's volumes from their newest R2 backups. Include it only in a
+# cluster whose claims don't exist yet: dataSourceRef can't be added to an
+# existing claim, and once added it can't be removed, so the component stays
+# for the cluster's lifetime. See "Restoring a cluster" in the README.
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+resources:
+  - replicationdestination.yaml
+patches:
+  - target:
+      kind: PersistentVolumeClaim
+      name: freshrss-data
+      namespace: freshrss
+    patch: |-
+      - op: add
+        path: /spec/dataSourceRef
+        value:
+          apiGroup: volsync.backube
+          kind: ReplicationDestination
+          name: freshrss-data

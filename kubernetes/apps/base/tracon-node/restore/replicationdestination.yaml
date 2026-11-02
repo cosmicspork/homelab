@@ -1,0 +1,42 @@
+apiVersion: volsync.backube/v1alpha1
+kind: ReplicationDestination
+metadata:
+  name: tracon-state
+  namespace: tracon-node
+spec:
+  # Runs once, when created: restores the newest snapshot, which the PVC's
+  # dataSourceRef then fills from. Changing the value would restore again,
+  # but only into a new snapshot; a bound claim is never refilled.
+  trigger:
+    manual: restore-once
+  restic:
+    repository: tracon-state-restic
+    copyMethod: Snapshot
+    volumeSnapshotClassName: do-block-storage
+    capacity: 50Gi
+    accessModes: ["ReadWriteOnce"]
+    # The restore's working volume and restic cache are throwaway.
+    storageClassName: do-block-storage
+    cacheStorageClassName: do-block-storage
+    cacheCapacity: 1Gi
+    cleanupTempPVC: true
+    cleanupCachePVC: true
+    # The app's own user, as in backup.yaml. Ownership comes back as this
+    # user: an unprivileged mover can't chown, so a file the snapshot has as
+    # root returns owned by the app (group and mode are kept).
+    moverSecurityContext:
+      runAsNonRoot: true
+      runAsUser: 65532
+      runAsGroup: 65532
+      fsGroup: 65532
+      fsGroupChangePolicy: OnRootMismatch
+      seccompProfile:
+        type: RuntimeDefault
+    # Restore memory grows with file count: at 510k files this peaked at
+    # about 1.4Gi and was OOM-killed at 512Mi, though the backup fits there.
+    moverResources:
+      requests:
+        cpu: 10m
+        memory: 64Mi
+      limits:
+        memory: 2Gi
