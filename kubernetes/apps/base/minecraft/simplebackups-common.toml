@@ -1,6 +1,6 @@
 # Copied over the server's config/simplebackups-common.toml on every start
 # (the image syncs /config into /data/config). The pack turns Simple Backups
 # on for anyone running it; here VolSync already copies the whole volume to
-# R2 every hour, so the mod's zips only filled the volume. The mod fills in
+# R2 every 6 hours, so the mod's zips only filled the volume. The mod fills in
 # every other setting with its defaults when it loads this file.
 enabled = false

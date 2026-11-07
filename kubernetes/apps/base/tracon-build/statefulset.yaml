@@ -119,9 +119,14 @@ spec:
               mountPath: /certs
               readOnly: true
       volumes:
+        # On the node's disk, not a block volume: in-cluster builds are rare,
+        # so a dedicated 100Gi volume ($10/mo) cost more than the rebuilds
+        # it saved. The cache starts empty whenever the pod is rescheduled.
+        # Above the limit the kubelet evicts the pod, so the GC policy in
+        # buildkitd.toml stays well under it.
         - name: cache
-          persistentVolumeClaim:
-            claimName: buildkit-cache
+          emptyDir:
+            sizeLimit: 20Gi
         - name: config
           configMap:
             name: buildkitd

@@ -45,7 +45,7 @@ metadata:
 spec:
   sourcePVC: tracon-hub-data
   trigger:
-    schedule: "40 * * * *"
+    schedule: "40 */6 * * *"
   restic:
     repository: tracon-hub-data-restic
     copyMethod: Snapshot
@@ -57,7 +57,7 @@ spec:
     cacheCapacity: 1Gi
     pruneIntervalDays: 7
     retain:
-      hourly: 24
+      hourly: 4
       daily: 7
       weekly: 4
       monthly: 6

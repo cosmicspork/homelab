@@ -45,7 +45,7 @@ metadata:
 spec:
   sourcePVC: pager-data
   trigger:
-    schedule: "20 * * * *"
+    schedule: "20 */6 * * *"
   restic:
     repository: pager-data-restic
     copyMethod: Snapshot
@@ -57,7 +57,7 @@ spec:
     cacheCapacity: 1Gi
     pruneIntervalDays: 7
     retain:
-      hourly: 24
+      hourly: 4
       daily: 7
       weekly: 4
       monthly: 6

@@ -45,9 +45,13 @@ metadata:
 spec:
   sourcePVC: tracon-state
   trigger:
-    schedule: "45 * * * *"
+    schedule: "45 */6 * * *"
   restic:
     repository: tracon-state-restic
+    # Changing this value runs `restic unlock` before the next sync. Set to
+    # clear a stale lock left on 2026-11-04 by a mover killed mid-run, which
+    # failed every `forget` and kept the 2026-11-03 sync from finishing.
+    unlock: "2026-11-07"
     copyMethod: Snapshot
     volumeSnapshotClassName: do-block-storage
     # The snapshot clone and the restic cache are throwaway: without these
@@ -57,7 +61,7 @@ spec:
     cacheCapacity: 1Gi
     pruneIntervalDays: 7
     retain:
-      hourly: 24
+      hourly: 4
       daily: 7
       weekly: 4
       monthly: 6

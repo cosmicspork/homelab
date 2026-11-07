@@ -45,7 +45,7 @@ metadata:
 spec:
   sourcePVC: hearth-data
   trigger:
-    schedule: "5 * * * *"
+    schedule: "5 */6 * * *"
   restic:
     repository: hearth-data-restic
     copyMethod: Snapshot
@@ -57,7 +57,7 @@ spec:
     cacheCapacity: 1Gi
     pruneIntervalDays: 7
     retain:
-      hourly: 24
+      hourly: 4
       daily: 7
       weekly: 4
     # The app's own user. fsGroup makes the fresh cache volume writable;
