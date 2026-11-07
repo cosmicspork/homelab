@@ -3,7 +3,6 @@ kind: Kustomization
 resources:
   - namespace.yaml
   - buildkitd-certs-secret.yaml
-  - pvc.yaml
   - networkpolicy.yaml
   - statefulset.yaml
   - service.yaml
