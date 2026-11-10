@@ -48,7 +48,7 @@ spec:
         # wrong volume never generates a fresh one. On the first start this is
         # where the world is copied in (kubectl cp into this container).
         - name: world-guard
-          image: itzg/minecraft-server:2026.10.1-java21
+          image: itzg/minecraft-server:2026.11.0-java21
           command:
             - sh
             - -c
@@ -69,7 +69,7 @@ spec:
               mountPath: /data
       containers:
         - name: server
-          image: itzg/minecraft-server:2026.10.1-java21
+          image: itzg/minecraft-server:2026.11.0-java21
           securityContext:
             readOnlyRootFilesystem: true
             allowPrivilegeEscalation: false
