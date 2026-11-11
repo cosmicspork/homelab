@@ -27,7 +27,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: mc-monitor
-          image: itzg/mc-monitor:1.18.3
+          image: itzg/mc-monitor:1.19.0
           args:
             - export-for-prometheus
             - -servers
