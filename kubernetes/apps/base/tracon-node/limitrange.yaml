@@ -1,5 +1,5 @@
 # Defaults for containers that name no resources. Since tracon 0.33 the node
-# sizes its own harness pods ([runtime.kubernetes.resources] in node.toml), so
+# sizes its own sandbox pods ([runtime.kubernetes.resources] in node.toml), so
 # this is only a fallback for anything else started in the namespace.
 #
 # The 2Gi memory limit is the point: without it a runaway process could take

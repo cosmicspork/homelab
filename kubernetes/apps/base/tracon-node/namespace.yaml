@@ -3,6 +3,6 @@ kind: Namespace
 metadata:
   name: tracon-node
   labels:
-    # The harness pods are held to the restricted profile; the node itself
+    # The sandbox pods are held to the restricted profile; the node itself
     # satisfies it too.
     pod-security.kubernetes.io/enforce: restricted

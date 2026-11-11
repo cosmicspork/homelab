@@ -1,8 +1,7 @@
-# The node accepts its sandboxes on the sandbox port, its older harness pods
-# on the forward, proxy and egress ports, buildkitd on the egress port (the
-# proxy a repository's `build` steps fetch through), and cloudflared on the
-# operator API. A port-forward (or the Coder tunnel) enters via the kubelet
-# and is not subject to this either way.
+# The node accepts its sandboxes on the sandbox port, buildkitd on the egress
+# port (the proxy a repository's `build` steps fetch through), and
+# cloudflared on the operator API. A port-forward (or the Coder tunnel)
+# enters via the kubelet and is not subject to this either way.
 #
 # Opening 7420 to cloudflared is what lets the phone reach this node; Cloudflare
 # Access and the node's operator token both have to be passed, since the API
@@ -16,19 +15,9 @@ spec:
   podSelector:
     matchLabels:
       tracon.dev/role: node
+      tracon.dev/node: tracon
   policyTypes: ["Ingress"]
   ingress:
-    - from:
-        - podSelector:
-            matchLabels:
-              tracon.dev/role: harness
-      ports:
-        - protocol: TCP
-          port: 7421
-        - protocol: TCP
-          port: 8888
-        - protocol: TCP
-          port: 7424
     - from:
         - podSelector:
             matchLabels:

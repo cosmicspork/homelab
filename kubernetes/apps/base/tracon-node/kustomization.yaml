@@ -10,7 +10,6 @@ resources:
   - configmap.yaml
   - secret.yaml
   - buildkit-client-certs-secret.yaml
-  - networkpolicy-harness.yaml
   - networkpolicy-sandbox.yaml
   - networkpolicy-node.yaml
   - deployment.yaml
