@@ -9,9 +9,10 @@
 # application in Zero Trust unless the app is meant to be reachable without one
 # (then its originRequest.access, below).
 #
-# Access (Zero Trust) sits in front of rss, tracon-node, mc-wake and metrics,
-# and cloudflared checks each one's Access token itself (originRequest.access,
-# the team name plus that application's AUD tag from its overview page). A
+# Access (Zero Trust) sits in front of rss, tracon-node, mc-wake, metrics and
+# k8s, and cloudflared checks each one's Access token itself
+# (originRequest.access, the team name plus that application's AUD tag from
+# its overview page). A
 # request without a valid token for that application gets a 403 here, so a
 # hostname fails closed if its Access application is ever missing, deleted or
 # loosened, rather than passing traffic straight to the app. Service-token
@@ -64,4 +65,17 @@ ingress:
         teamName: 0x69xyz
         audTag:
           - f2e266e57aad30d3edf5d0eee2905a79d148b24bc7d9b2546475ec47efb059c6
+  # The Kubernetes API, for kubectl and flux from addresses the control plane
+  # firewall doesn't list. A raw TCP stream: TLS runs end to end between the
+  # client and the API server, and the client still authenticates to the API
+  # with its own DO credentials. Clients reach it with
+  # `cloudflared access tcp --hostname k8s.0x69.xyz --url 127.0.0.1:6443`.
+  - hostname: k8s.0x69.xyz
+    service: tcp://kubernetes.default.svc.cluster.local:443
+    originRequest:
+      access:
+        required: true
+        teamName: 0x69xyz
+        audTag:
+          - f08f83903422484064f0f4cb99de98ac0b3ce783f5e186e98c35e54b2ff2e8d9
   - service: http_status:404

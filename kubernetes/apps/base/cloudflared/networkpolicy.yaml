@@ -12,8 +12,9 @@ spec:
 # Cilium admits regardless of policy (buildkitd's probes already rely on it).
 #
 # Egress: the Cloudflare edge (7844 over QUIC and TCP, 443 for its API), and
-# the Service behind each public hostname in the ConfigMap. Backends are
-# matched on the pod port: Cilium applies policy after the Service's DNAT, as
+# the Service behind each public hostname in the ConfigMap, except the
+# Kubernetes API, which is in networkpolicy-cilium.yaml. Backends are matched
+# on the pod port: Cilium applies policy after the Service's DNAT, as
 # tracon-node's policy (7420 only, behind a Service on 80) already shows.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
