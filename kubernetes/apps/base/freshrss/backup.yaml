@@ -44,8 +44,11 @@ metadata:
   namespace: freshrss
 spec:
   sourcePVC: freshrss-data
+  # Daily, by snapshot: FreshRSS keeps its data in SQLite, which a live copy
+  # (copyMethod: Direct) can catch mid-write. Each run's snapshot and clone
+  # bill at least a cent apiece, so one run a day rather than four.
   trigger:
-    schedule: "25 */6 * * *"
+    schedule: "25 3 * * *"
   restic:
     repository: freshrss-data-restic
     copyMethod: Snapshot
@@ -57,7 +60,6 @@ spec:
     cacheCapacity: 1Gi
     pruneIntervalDays: 7
     retain:
-      hourly: 4
       daily: 7
       weekly: 4
       monthly: 6

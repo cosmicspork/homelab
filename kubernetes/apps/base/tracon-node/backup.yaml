@@ -44,8 +44,11 @@ metadata:
   namespace: tracon-node
 spec:
   sourcePVC: tracon-state
+  # Daily, by snapshot: the node keeps its data in SQLite, which a live copy
+  # (copyMethod: Direct) can catch mid-write. Each run's snapshot and clone
+  # bill at least a cent apiece, so one run a day rather than four.
   trigger:
-    schedule: "45 */6 * * *"
+    schedule: "45 3 * * *"
   restic:
     repository: tracon-state-restic
     # Changing this value runs `restic unlock` before the next sync. Set to
@@ -61,7 +64,6 @@ spec:
     cacheCapacity: 1Gi
     pruneIntervalDays: 7
     retain:
-      hourly: 4
       daily: 7
       weekly: 4
       monthly: 6
