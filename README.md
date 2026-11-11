@@ -51,7 +51,7 @@ A whitelisted server for the [Hearth & Hollow](https://github.com/cosmicspork/he
 
 Outside this repo: the `minecraft-premium` node pool, the `homelab-minecraft` cloud firewall (TCP 30565 inbound on the cluster's worker tag; the DOKS-managed firewall admits nothing from outside), the Cloudflare API token in `external-dns/secret.yaml` (Zone:DNS:Edit and Zone:Zone:Read on `0x69.xyz`), the proxied `mc-wake` tunnel CNAME, and the `mc-wake` Access application (its policy lists the players).
 
-The world lives on the `hearth-data` volume. The pod's `world-guard` init container waits until `/data/world/level.dat` exists, so an empty volume never generates a new world: to import one, copy it in with `kubectl cp <world-dir> minecraft/hearth-0:/data/world -c world-guard` while the guard is waiting. VolSync copies the whole volume to R2 every 6 hours (see Backups). The pack's own Simple Backups mod is turned off here by `simplebackups-common.toml`, which the server copies into its config on every start; its zips only duplicated that and filled the volume.
+The world lives on the `hearth-data` volume. The pod's `world-guard` init container waits until `/data/world/level.dat` exists, so an empty volume never generates a new world: to import one, copy it in with `kubectl cp <world-dir> minecraft/hearth-0:/data/world -c world-guard` while the guard is waiting. VolSync copies the whole volume to R2 every 6 hours, reading it live (see Backups): exact while the server sleeps, possibly mid-save while someone plays. The pack's own Simple Backups mod is turned off here by `simplebackups-common.toml`, which the server copies into its config on every start; its zips only duplicated that and filled the volume.
 
 Server console commands (game rules, Chunky, `whitelist add`) go through `kubectl -n minecraft exec hearth-0 -c server -- mc-send-to-console <command>` while it is awake; output lands in the pod log.
 
@@ -169,16 +169,17 @@ VolSync backs every stateful volume up to the `homelab` R2 bucket with restic, o
 
 Each app's `backup.yaml` holds its ReplicationSource and a `volsync-mover` NetworkPolicy (DNS and 443 out, nothing in); `volsync-secret.yaml` (Immich: one file per volume, since SOPS signs a whole file and Flux decrypts each object on its own) holds the repository URL, the R2 key and the restic password.
 
-| Volume | Schedule (UTC) | Keeps |
-|---|---|---|
-| `minecraft/hearth-data` | every 6 h at :05 | 4 six-hourly, 7 daily, 4 weekly |
-| `immich/immich-library` | every 6 h at :15 | 7 daily, 4 weekly, 6 monthly |
-| `immich/immich-postgres-data` | daily 03:30, after Immich's own 02:00 dump into the library | 7 daily, 4 weekly |
-| `pager`, `freshrss`, `svastha`, `svastha-node`, `tracon` (hub), `tracon-node` | every 6 h, staggered :20 to :45 | 4 six-hourly, 7 daily, 4 weekly, 6 monthly |
+| Volume | Schedule (UTC) | Copy | Keeps |
+|---|---|---|---|
+| `minecraft/hearth-data` | every 6 h at :05 | Direct | 4 six-hourly, 7 daily, 4 weekly |
+| `immich/immich-library` | every 6 h at :15 | Direct | 7 daily, 4 weekly, 6 monthly |
+| `svastha/svastha-relay-data`, `svastha-node/svastha-node-identity` | every 6 h at :30 and :35 | Direct | 4 six-hourly, 7 daily, 4 weekly, 6 monthly |
+| `pager`, `freshrss`, `tracon` (hub), `tracon-node` | daily, staggered 03:20 to 03:45 | Snapshot | 7 daily, 4 weekly, 6 monthly |
+| `immich/immich-postgres-data` | daily 03:30, after Immich's own 02:00 dump into the library | Snapshot | 7 daily, 4 weekly |
 
 Not backed up: buildkitd's cache (an emptyDir that rebuilds itself) and `monitoring/victoria-metrics-data` (losing history on a move is acceptable).
 
-- **Consistency**: each run snapshots the volume (`copyMethod: Snapshot`, VolumeSnapshotClass `do-block-storage`), backs up a clone of the snapshot and deletes both, so the copy is crash-consistent and the app keeps running. The clone and restic's 1Gi cache use `do-block-storage`, not the retain class, so they don't outlive the run. Each run briefly attaches two extra volumes to the node, which is why the schedules are staggered (a DOKS node takes 15). DigitalOcean bills the snapshot and the clone at least $0.01 each however briefly they exist, so every run costs about $0.02: hourly runs on seven volumes came to about $3 a day, which is why nothing runs more often than every 6 hours.
+- **Consistency**: a `Snapshot` run snapshots the volume (VolumeSnapshotClass `do-block-storage`), backs up a clone of the snapshot and deletes both, so the copy is crash-consistent and the app keeps running. DigitalOcean bills the snapshot and the clone at least $0.01 each however briefly they exist, so every such run costs about $0.02 (hourly runs on seven volumes came to about $3 a day). A `Direct` run makes neither: the mover mounts the live volume on the app's node (VolSync copies the app pod's node and tolerations), so it costs nothing per run but reads files while the app may be writing them. Direct is for volumes where that is safe: write-once media, files replaced whole by rename, and a Minecraft world that is complete on disk whenever the server sleeps. Databases stay on Snapshot: SQLite (pager, FreshRSS, tracon) and Postgres can restore corrupt from a live copy, so those run once a day. Restic's 1Gi cache uses `do-block-storage`, not the retain class, so it doesn't outlive its source. Each run attaches extra volumes to the node, which is why the schedules are staggered (a DOKS node takes 15). With a single worker node a Direct mover always shares the app's node; with more, a pod rescheduled onto another node while a mover holds its volume waits for the run to finish.
 - **Permissions**: in `restricted` namespaces the mover runs as the app's own user, with `fsGroup` and `OnRootMismatch` so the cache volume is writable without a recursive chown of the data. `immich` and `freshrss` (baseline, root-owned files) allow privileged movers through a namespace annotation: root with DAC_OVERRIDE, CHOWN and FOWNER, which baseline permits.
 - **Pruning**: `forget` applies the retention after every run; `prune`, which repacks R2 data, runs every 7 days.
 

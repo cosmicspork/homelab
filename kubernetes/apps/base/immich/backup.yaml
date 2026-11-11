@@ -48,11 +48,13 @@ spec:
     schedule: "15 */6 * * *"
   restic:
     repository: immich-library-restic
-    copyMethod: Snapshot
-    volumeSnapshotClassName: do-block-storage
-    # The snapshot clone and the restic cache are throwaway: without these
-    # they would inherit the source's retain class and outlive each run.
-    storageClassName: do-block-storage
+    # Direct: the mover reads the live volume on the app's node, so no
+    # snapshot or clone is made (DigitalOcean bills each at least a cent).
+    # Safe here because media files are written once; the database is
+    # backed up below, by snapshot.
+    copyMethod: Direct
+    # The restic cache is throwaway: without this it would inherit the
+    # source's retain class and outlive each run.
     cacheStorageClassName: do-block-storage
     cacheCapacity: 1Gi
     pruneIntervalDays: 7
