@@ -19,6 +19,12 @@ spec:
     metadata:
       labels:
         tracon.dev/role: node
+        # Which node this is: its `[boundary] resource_prefix` (the default,
+        # `tracon`). Sandboxes are placed beside, and may reach, only the pod
+        # carrying both labels; the node reads them back from its own pod
+        # (TRACON_POD_NAME). Not in the selector, which a Deployment can't
+        # change.
+        tracon.dev/node: tracon
     spec:
       serviceAccountName: tracon-node
       securityContext:
@@ -31,7 +37,7 @@ spec:
       initContainers:
         # Seed the config onto the volume once; the node writes to it later.
         - name: seed-config
-          image: ghcr.io/cosmicspork/tracon-node:0.49.0
+          image: ghcr.io/cosmicspork/tracon-node:0.50.0
           command: ["sh", "-c", "mkdir -p /state/config/tracon /state/tmp && [ -f /state/config/tracon/node.toml ] || cp /seed/node.toml /state/config/tracon/node.toml"]
           securityContext:
             allowPrivilegeEscalation: false
@@ -45,7 +51,7 @@ spec:
               readOnly: true
       containers:
         - name: node
-          image: ghcr.io/cosmicspork/tracon-node:0.49.0
+          image: ghcr.io/cosmicspork/tracon-node:0.50.0
           args: ["serve"]
           env:
             - name: XDG_CONFIG_HOME
@@ -73,6 +79,10 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.namespace
+            - name: TRACON_POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
             - name: TRACON_POD_IP
               valueFrom:
                 fieldRef:
@@ -90,6 +100,10 @@ spec:
               containerPort: 8888
             - name: egress
               containerPort: 7424
+            # Sandboxes dial it ([runtime.kubernetes] sandbox_protocol), and
+            # their init containers fetch the harness bundle from it.
+            - name: sandbox
+              containerPort: 7426
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
