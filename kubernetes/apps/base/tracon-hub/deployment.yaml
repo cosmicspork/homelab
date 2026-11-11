@@ -49,6 +49,17 @@ spec:
               value: /data
             - name: TRACON_HUB_RETAIN_DAYS
               value: "14"
+            # Turns on the sandbox relay over the hub's own URL
+            # (wss://tracon-hub.0x69.xyz/v0/relay/connect), so a sandbox on a
+            # remote provider can reach a node that has no public address. The
+            # domain is only the suffix sandboxes put in their inner TLS SNI
+            # (<node label>.relay.0x69.xyz); the hub routes by it and never
+            # terminates that TLS. It needs no DNS record, because the carrier
+            # is a WebSocket through the existing Cloudflare tunnel.
+            # TRACON_HUB_RELAY_ADDR (a raw TLS listener) stays off: it would
+            # need a public 443 outside the tunnel.
+            - name: TRACON_HUB_RELAY_DOMAIN
+              value: relay.0x69.xyz
           # TRACON_HUB_ADMIT: the first node's id, admitted into @mesh at
           # startup so something can connect at all. Every other node arrives
           # by enrollment. Not secret in the cryptographic sense (it is a
