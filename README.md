@@ -44,7 +44,22 @@ kubectl config set-cluster do-ams3-homelab-ams3 --server=https://127.0.0.1:6443 
   --tls-server-name=<cluster id>.k8s.ondigitalocean.com
 ```
 
-`--tls-server-name` keeps certificate verification against the name the API server's certificate carries. The first connection opens a browser for the Access login; the token is cached under `~/.cloudflared/` until the session expires. `doctl kubernetes cluster kubeconfig save` rewrites the server back to the public endpoint, so rerun `set-cluster` after it. To get in without the tunnel (Cloudflare down, say), add an address to the firewall for the duration: `doctl kubernetes cluster update <cluster> --enable-control-plane-firewall=true --control-plane-firewall-allowed-addresses <ip>/32`, and clear it again afterwards.
+`--tls-server-name` keeps certificate verification against the name the API server's certificate carries. The first connection opens a browser for the Access login; the token is cached under `~/.cloudflared/` until the session expires. Any `doctl kubernetes cluster` command that writes credentials sets the server back to the public endpoint: `kubeconfig save`, and `update` unless it is given `--update-kubeconfig=false`. Rerun `set-cluster` after one.
+
+To get in without the tunnel (Cloudflare down, say), add an address to the firewall for the duration. This `update` also points kubeconfig at the public endpoint, which is what you want while the tunnel is down:
+
+```bash
+doctl kubernetes cluster update <cluster> --enable-control-plane-firewall=true \
+  --control-plane-firewall-allowed-addresses <ip>/32
+```
+
+Afterwards, clear the list (an empty value leaves the firewall on with no outside address), check it, and rerun `set-cluster`:
+
+```bash
+doctl kubernetes cluster update <cluster> --update-kubeconfig=false \
+  --enable-control-plane-firewall=true --control-plane-firewall-allowed-addresses ""
+doctl kubernetes cluster get <cluster> -o json | jq '.[0].control_plane_firewall'   # enabled, []
+```
 
 ### Immich
 Reachable without Access: the mobile app can't complete a browser login, so Immich's own login is the gate. Its NetworkPolicies confine the server to its database, its queue and the internet. Uses the official Helm chart with a self-managed Postgres deployment (`ghcr.io/immich-app/postgres`) that includes the Postgres extensions Immich requires. Machine learning is disabled. Library data is on a 100Gi PVC. The Postgres image version should be kept in sync with the Immich app version — check the official Immich docker-compose release for the matching tag.
