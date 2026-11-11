@@ -70,3 +70,17 @@ spec:
       ports:
         - protocol: TCP
           port: 443
+    # The node's per-client egress proxy, which a repository's `build` steps
+    # are given as their proxy, granted only that entry's `egress` hosts. The
+    # rule above still lets a step that ignores its proxy go out directly,
+    # since the daemon itself pulls bases and pushes to DOCR.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: tracon-node
+          podSelector:
+            matchLabels:
+              tracon.dev/role: node
+      ports:
+        - protocol: TCP
+          port: 7424

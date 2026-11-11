@@ -1,0 +1,31 @@
+# The boundary of a sandbox pod ([runtime.kubernetes] sandbox_protocol): it
+# accepts nothing, and may reach only the node's pod, on the sandbox port,
+# where it presents its run's one-time token over TLS pinned to the node. No
+# DNS, no API server, no internet, and none of the node pod's other ports:
+# the MCP and model gateway and both proxies are tunnels over that one
+# connection. The node checks this policy's shape before it runs a sandbox,
+# and that no other policy in the namespace selects its sandboxes.
+#
+# `tracon.dev/node` is the node's `[boundary] resource_prefix`. A second node
+# in the namespace gets a copy named and labelled with its own prefix.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  namespace: tracon-node
+  name: tracon-sandbox
+spec:
+  podSelector:
+    matchLabels:
+      tracon.dev/role: sandbox
+      tracon.dev/node: tracon
+  policyTypes: ["Ingress", "Egress"]
+  ingress: []
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              tracon.dev/role: node
+              tracon.dev/node: tracon
+      ports:
+        - protocol: TCP
+          port: 7426
