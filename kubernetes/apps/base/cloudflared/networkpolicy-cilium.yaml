@@ -1,0 +1,20 @@
+# The k8s.0x69.xyz route forwards to the Kubernetes API. The API server isn't
+# a pod, so the NetworkPolicy beside this can't select it; Cilium's
+# kube-apiserver entity can (as volsync's policy does). Cilium allows the union
+# of every policy selecting a pod, so this only adds the API server on 443.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: cloudflared-apiserver
+  namespace: cloudflared
+spec:
+  endpointSelector:
+    matchLabels:
+      app: cloudflared
+  egress:
+    - toEntities:
+        - kube-apiserver
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP

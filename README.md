@@ -12,7 +12,7 @@ GitOps-managed Kubernetes cluster running on DigitalOcean. Flux watches this rep
 | Storage class | `do-block-storage-retain` (block volumes survive PVC deletion — manual cleanup required) |
 | Backups | VolSync (restic) copies every stateful volume to Cloudflare R2 (see Backups) |
 | Ingress | Cloudflare Tunnel (`cloudflared`, outbound only; no load balancer) for HTTP. The one exception is the Minecraft NodePort (30565), admitted by its own cloud firewall |
-| Auth | Cloudflare Access on `rss`, `tracon-node`, `mc-wake` and `metrics` |
+| Auth | Cloudflare Access on `rss`, `tracon-node`, `mc-wake`, `metrics` and `k8s` (the Kubernetes API) |
 | Network | A NetworkPolicy on every app pod (only tracon-node keeps open egress, for its proxies), plus a CiliumNetworkPolicy where a pod needs the API server; Pod Security Admission labels on each app namespace |
 | TLS | Public: Cloudflare edge. Internal: buildkit mTLS from `scripts/buildkit-pki.sh` |
 | GitOps | Flux v2 |
@@ -32,6 +32,19 @@ GitOps-managed Kubernetes cluster running on DigitalOcean. Flux watches this rep
 
 ### cloudflared
 The cluster's only way in. Two replicas hold outbound connections to Cloudflare for the `homelab` tunnel, and `kubernetes/apps/production/cloudflared/config.yaml` maps each public hostname to its Service (generated into a hash-suffixed ConfigMap, so a change rolls the pods). The tunnel credentials are the SOPS secret beside the Deployment. Access applications and service tokens live in the Zero Trust dashboard, not in this repo.
+
+### Kubernetes API
+The control plane firewall is on with an empty allowlist, so only the cluster's own nodes and DigitalOcean reach the API server directly. `kubectl` and `flux` on a workstation go through the tunnel instead: `k8s.0x69.xyz` is a TCP route to `kubernetes.default.svc`, behind its own Access application (and cloudflared's check of that application's AUD tag, like every Access hostname). Nothing in it depends on the workstation's address.
+
+TLS runs end to end between `kubectl` and the API server, and `kubectl` still authenticates with its DO credentials, so Access is a second gate in front of the API's own. The workstation runs a local forwarder and points its kubeconfig at it:
+
+```bash
+cloudflared access tcp --hostname k8s.0x69.xyz --url 127.0.0.1:6443   # dotfiles: k8s-api-tunnel.service
+kubectl config set-cluster do-ams3-homelab-ams3 --server=https://127.0.0.1:6443 \
+  --tls-server-name=<cluster id>.k8s.ondigitalocean.com
+```
+
+`--tls-server-name` keeps certificate verification against the name the API server's certificate carries. The first connection opens a browser for the Access login; the token is cached under `~/.cloudflared/` until the session expires. `doctl kubernetes cluster kubeconfig save` rewrites the server back to the public endpoint, so rerun `set-cluster` after it. To get in without the tunnel (Cloudflare down, say), add an address to the firewall for the duration: `doctl kubernetes cluster update <cluster> --enable-control-plane-firewall=true --control-plane-firewall-allowed-addresses <ip>/32`, and clear it again afterwards.
 
 ### Immich
 Reachable without Access: the mobile app can't complete a browser login, so Immich's own login is the gate. Its NetworkPolicies confine the server to its database, its queue and the internet. Uses the official Helm chart with a self-managed Postgres deployment (`ghcr.io/immich-app/postgres`) that includes the Postgres extensions Immich requires. Machine learning is disabled. Library data is on a 100Gi PVC. The Postgres image version should be kept in sync with the Immich app version — check the official Immich docker-compose release for the matching tag.
@@ -128,7 +141,7 @@ Flux reconciliation order: `infrastructure` → `apps` (enforced via `dependsOn`
 
 `scripts/validate.sh` renders what Flux applies and fails if any Secret is not SOPS-encrypted, if a SOPS file holds more than one document (Flux decrypts objects one at a time), if an object doesn't match its schema (`kubeconform -strict`), or if a workload fails `kube-linter` (`.kube-linter.yaml`, which also requires every pod to be selected by a NetworkPolicy). The `validate` workflow runs it on every pull request and on `main`; the `main` ruleset requires it, and Renovate automerges minor and patch updates only once it passes. An object that can't meet a lint check carries an `ignore-check.kube-linter.io/<check>` annotation saying why. Run it locally with `kustomize`, `kubeconform`, `kube-linter` and `yq` on PATH. The workflow pins those tools by version and checksum, so they are bumped by hand.
 
-Nothing in CI talks to the cluster: the DOKS control plane firewall admits only an allowlist. Flux fetches `main` every 5 minutes (a patch in `flux-system/kustomization.yaml`); `flux reconcile source git flux-system` from an allowed address applies a merge immediately.
+Nothing in CI talks to the cluster: the DOKS control plane firewall admits no outside address (see [Kubernetes API](#kubernetes-api)). Flux fetches `main` every 5 minutes (a patch in `flux-system/kustomization.yaml`); `flux reconcile source git flux-system` through the tunnel applies a merge immediately.
 
 ## Secrets management (SOPS + age)
 
@@ -229,7 +242,7 @@ If the cluster needs to be rebuilt from scratch:
 1. **Provision a new DOKS cluster** and recreate what lives on the DigitalOcean side:
    - A `general` pool (`s-4vcpu-8gb`, 1 node) and a `minecraft-premium` pool (`s-4vcpu-8gb-amd`, falling back to `-intel` or plain `s-4vcpu-8gb` if a region lacks it; autoscaled 0 to 1, label and taint `workload=minecraft`, `NoSchedule`).
    - Auto-upgrade off; upgrades are done by hand so a node replacement never surprises a single-node cluster.
-   - The control plane firewall, admitting only the addresses that run `kubectl`.
+   - The control plane firewall, enabled with an empty allowlist. The `k8s` tunnel route needs no change, but each workstation's kubeconfig does: rerun the `set-cluster` command in [Kubernetes API](#kubernetes-api) with the new cluster's hostname. Until Flux has the tunnel running, `kubectl` needs a temporary allowlist entry.
    - The DOCR integration (`doctl kubernetes cluster registry add`), which puts the `cosmicspork` pull secret in every namespace. tracon-node's harness images come from the registry.
    - The new cluster's tag (`k8s:<cluster id>`) on the `homelab-minecraft` cloud firewall, in place of the old one.
 
@@ -290,4 +303,4 @@ The storage class `do-block-storage-retain` means DigitalOcean block volumes are
 | `helm` | Chart inspection / manual operations |
 | `sops` | Encrypt/decrypt secrets |
 | `age` / `age-keygen` | Key generation (one-time setup) |
-| `cloudflared` | Tunnel DNS routes (`tunnel route dns`); needs `~/.cloudflared/cert.pem` from `cloudflared tunnel login` |
+| `cloudflared` | Tunnel DNS routes (`tunnel route dns`); needs `~/.cloudflared/cert.pem` from `cloudflared tunnel login`. Also the local forwarder to the Kubernetes API (`access tcp`) |
