@@ -1,8 +1,10 @@
-# Only what the node needs: it creates, watches, attaches to, reads the logs
-# of, and deletes its harness pods, reads and lists the NetworkPolicies it
-# verifies (it cannot edit them), and manages the per-run Secrets described
-# below. With sandbox_protocol on, attach, watch and the Secrets rule are
-# no longer used; they stay until no pod from before the switch is left.
+# Exactly what the node's `runtime` check asserts of a node that runs
+# sandboxes ([runtime.kubernetes] sandbox_protocol): it creates, reads, lists
+# and deletes its sandbox pods, reads the log of one that stopped before
+# connecting, and reads and lists the NetworkPolicies it verifies (it cannot
+# edit them; a list finds any other policy that also selects its sandboxes
+# and would widen their route). Nothing on Secrets, no attach: a sandbox's
+# stdio and its run's secret environment travel over the protocol.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
@@ -11,30 +13,10 @@ metadata:
 rules:
   - apiGroups: [""]
     resources: ["pods"]
-    verbs: ["create", "get", "list", "watch", "delete"]
-  # Attach is a GET that upgrades to a WebSocket, which the API server
-  # authorises as `get`; `create` covers the POST form. Both, or the node can
-  # create a harness it cannot talk to.
-  - apiGroups: [""]
-    resources: ["pods/attach"]
-    verbs: ["create", "get"]
+    verbs: ["create", "get", "list", "delete"]
   - apiGroups: [""]
     resources: ["pods/log"]
     verbs: ["get"]
-  # A credential lent to a run reaches the harness pod through a Secret the
-  # node creates for that run and the pod reads by secretKeyRef, never as
-  # plaintext env in the pod spec. `patch` sets the Secret's owner reference
-  # to the pod once the pod exists, so the garbage collector removes it with
-  # the pod; `delete` removes it when the run ends; `get` and `list` let the
-  # node sweep leftovers after a restart. Without these rights the node
-  # refuses a run that carries a credential rather than inlining it.
-  # This also lets the node read every Secret in this namespace, including
-  # the ingress certificate, so keep unrelated Secrets out of it.
-  - apiGroups: [""]
-    resources: ["secrets"]
-    verbs: ["create", "get", "list", "delete", "patch"]
-  # `list` finds any other policy that also selects the node's sandboxes,
-  # which would widen their route.
   - apiGroups: ["networking.k8s.io"]
     resources: ["networkpolicies"]
     verbs: ["get", "list"]

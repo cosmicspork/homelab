@@ -10,7 +10,8 @@ spec:
   resources:
     requests:
       # Identity seed, channel keys, policy, the node database, worktrees,
-      # and the per-session subpaths every harness pod mounts. Retain: losing
+      # and every session's files (sandbox pods mount none of it; their files
+      # travel over the sandbox protocol). Retain: losing
       # it means re-enrolling the node and redoing the credential import.
       # Sized for repository clones and their dependency caches. The storage
       # class allows expansion and DO volumes grow online, but never shrink:

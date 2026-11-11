@@ -94,10 +94,6 @@ spec:
           ports:
             - name: http
               containerPort: 7420
-            - name: forward
-              containerPort: 7421
-            - name: proxy
-              containerPort: 8888
             - name: egress
               containerPort: 7424
             # Sandboxes dial it ([runtime.kubernetes] sandbox_protocol), and

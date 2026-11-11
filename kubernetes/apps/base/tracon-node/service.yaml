@@ -1,5 +1,5 @@
-# The operator API, for the ingress to reach. Not the forward or proxy ports:
-# those are the harness's, and only harness pods may reach them.
+# The operator API, for the ingress to reach. Not the sandbox port: only the
+# node's own sandbox pods may reach that, by pod address.
 apiVersion: v1
 kind: Service
 metadata:
