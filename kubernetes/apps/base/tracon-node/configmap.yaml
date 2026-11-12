@@ -13,11 +13,6 @@ data:
     [runtime]
     kind = "kubernetes"
 
-    [runtime.kubernetes]
-    # Every harness pod is a sandbox over the sandbox protocol, on the stock
-    # base plus each [[repo]] entry's `build` steps.
-    sandbox_protocol = true
-
     # Builds repository images on buildkitd (tracon-build) and pushes them to
     # DOCR.
     [runtime.kubernetes.builder]
@@ -43,5 +38,27 @@ data:
     args = ["run", "--project", "/opt/consulta", "consulta"]
 
     [mesh]
-    # The hub shares this cluster; talk to it by service, not by the public name.
-    hub_url = "http://tracon-hub.tracon.svc.cluster.local"
+    # The public name, not the cluster service: DigitalOcean sandboxes reach
+    # this node through the hub's relay at this URL's host.
+    hub_url = "https://tracon-hub.0x69.xyz"
+
+    # DigitalOcean: this node builds templates on buildkitd for itself and
+    # for peers that ask (bazzite builds its own too), and places a session
+    # there when the cluster is full. Needs the `do` credential lent to it.
+    [mesh.sandbox_relay]
+    enabled = true
+    target = "127.0.0.1:8443"
+
+    [digitalocean]
+    credential = "do"
+    registry = "registry.digitalocean.com/cosmicspork"
+    relay = true
+    listen = "127.0.0.1:8443"
+    limit = 2
+
+    [placement]
+    digitalocean = "overflow"
+
+    [[placement.repo]]
+    path = "github.com/hounddogreading/hounddogreading"
+    client = true
