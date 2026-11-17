@@ -52,9 +52,9 @@ spec:
   restic:
     repository: tracon-state-restic
     # Changing this value runs `restic unlock` before the next sync. Set to
-    # clear a stale lock left on 2026-11-04 by a mover killed mid-run, which
-    # failed every `forget` and kept the 2026-11-03 sync from finishing.
-    unlock: "2026-11-07"
+    # clear a stale lock left on 2026-11-17 by a mover killed mid-run, which
+    # failed every retry's `forget` and kept that day's sync from finishing.
+    unlock: "2026-11-17"
     copyMethod: Snapshot
     volumeSnapshotClassName: do-block-storage
     # The snapshot clone and the restic cache are throwaway: without these
@@ -78,9 +78,11 @@ spec:
       fsGroupChangePolicy: OnRootMismatch
       seccompProfile:
         type: RuntimeDefault
+    # restic's memory grows with the file count: at ~430k files a run
+    # peaked just under 512Mi, and a mover killed mid-run leaves a stale lock.
     moverResources:
       requests:
         cpu: 10m
         memory: 64Mi
       limits:
-        memory: 512Mi
+        memory: 1Gi
