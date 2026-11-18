@@ -6,6 +6,7 @@ resources:
   - serviceaccount.yaml
   - role.yaml
   - rolebinding.yaml
+  - clusterrole-capacity.yaml
   - pvc.yaml
   - configmap.yaml
   - secret.yaml

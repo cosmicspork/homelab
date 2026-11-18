@@ -1,0 +1,28 @@
+# Read-only, cluster-wide: what the node's placement reads to know whether one
+# more session and one check's pod fit on the machine (its allocatable CPU and
+# memory, less the requests of every pod bound to it, in any namespace).
+# Nothing is written. Without it the node places by session count alone
+# ([placement] local_limit), so a session can land on a machine without room
+# and be evicted mid-build. Mirrors tracon's deploy/kubernetes/base
+# clusterrole.yaml and clusterrolebinding.yaml.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: tracon-node-capacity
+rules:
+  - apiGroups: [""]
+    resources: ["nodes", "pods"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: tracon-node-capacity
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: tracon-node-capacity
+subjects:
+  - kind: ServiceAccount
+    name: tracon-node
+    namespace: tracon-node
