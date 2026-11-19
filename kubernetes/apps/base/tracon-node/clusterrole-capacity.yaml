@@ -1,6 +1,7 @@
 # Read-only, cluster-wide: what the node's placement reads to know whether one
-# more session and one check's pod fit on the machine (its allocatable CPU and
-# memory, less the requests of every pod bound to it, in any namespace).
+# more session and one check's pod fit on a node of the tracon-sandbox pool
+# (its allocatable CPU and memory, less the requests of every pod bound to it,
+# in any namespace), and how the runtime check reads the pool's architecture.
 # Nothing is written. Without it the node places by session count alone
 # ([placement] local_limit), so a session can land on a machine without room
 # and be evicted mid-build. Mirrors tracon's deploy/kubernetes/base

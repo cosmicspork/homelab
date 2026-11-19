@@ -3,8 +3,11 @@
 # and deletes its sandbox pods, reads the log of one that stopped before
 # connecting, and reads and lists the NetworkPolicies it verifies (it cannot
 # edit them; a list finds any other policy that also selects its sandboxes
-# and would widen their route). Nothing on Secrets, no attach: a sandbox's
-# stdio and its run's secret environment travel over the protocol.
+# and would widen their route). With a sandbox pool
+# ([runtime.kubernetes.pool]) it lists events too, where the cluster
+# autoscaler says whether it is adding a node for a sandbox pod that has no
+# place yet. Nothing on Secrets, no attach: a sandbox's stdio and its run's
+# secret environment travel over the protocol.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
@@ -17,6 +20,9 @@ rules:
   - apiGroups: [""]
     resources: ["pods/log"]
     verbs: ["get"]
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["list"]
   - apiGroups: ["networking.k8s.io"]
     resources: ["networkpolicies"]
     verbs: ["get", "list"]
