@@ -83,10 +83,65 @@ The world lives on the `hearth-data` volume. The pod's `world-guard` init contai
 
 Server console commands (game rules, Chunky, `whitelist add`) go through `kubectl -n minecraft exec hearth-0 -c server -- mc-send-to-console <command>` while it is awake; output lands in the pod log.
 
+### tracon sandbox pool
+tracon-node runs every sandbox pod (agent sessions, review checks, repository preparations) on its own node pool, `tracon-sandbox`, rather than beside immich and the rest on the general node, where a `just check` peaking at about 3.9 GiB was evicted for memory pressure.
+
+- **The pool**: `tracon-sandbox`, `s-4vcpu-8gb`, autoscaled 0-1, label and taint `workload=tracon-sandbox` (`NoSchedule`), so nothing else lands there. Its node exists only while a sandbox pod runs; the autoscaler removes it after about ten idle minutes. Every running session holds it up, as a check does.
+- **How the node uses it**: the seed config's `[runtime.kubernetes.pool]` gives sandbox pods the pool's node selector and toleration (the node adds `kubernetes.io/arch` for the base it pinned). While the pool has no node, placement counts it as room to wait for; a pod the autoscaler is adding a node for (its `TriggeredScaleUp` event) waits up to `scale_up_grace_secs` (600) for it, so a cold start costs the node's boot and the image pull, a few minutes. Once the pool's one node is full, a pod the autoscaler won't place (`NotTriggerScaleUp`) is given up after the usual minute: sessions overflow to DigitalOcean (`[placement] digitalocean = "overflow"`), except hounddogreading's (`client = true`), and checks wait in the node's check queue.
+- **Sizing**: `[runtime.kubernetes.resources.command]` asks 4Gi and allows 6Gi per check. The node's allocatable memory is about 6.3 GiB, so one session (1400Mi in the live config) and one check fit together.
+- **Rights**: `role.yaml` lets the node list events in its namespace (the autoscaler's signals) and `clusterrole-capacity.yaml` lets it read nodes and pods cluster-wide (the pool's room and its nodes' architecture).
+
+Create the pool once (needs a `doctl` authenticated to the account; the cluster id is the homelab cluster's):
+
+```bash
+doctl kubernetes cluster node-pool create 5c9b05e1-8b57-4d2e-b07f-e71ce09be34e \
+  --name tracon-sandbox --size s-4vcpu-8gb \
+  --count 1 --auto-scale --min-nodes 0 --max-nodes 1 \
+  --label workload=tracon-sandbox --taint workload=tracon-sandbox:NoSchedule
+```
+
+`--count 1` boots one node now, which the autoscaler removes once nothing runs on it; DigitalOcean bills it only while it exists.
+
+**The seed is not the live config.** The `seed-config` init container copies `configmap.yaml` onto the state volume only when `/state/config/tracon/node.toml` is missing; after that the node owns the file (enrolment, providers, `[[repo]]` entries, settings edits all write to it). Don't move it aside to reseed: that would lose all of those. To bring the live file up to the seed's sandbox settings, once the deployed tracon-node release supports `[runtime.kubernetes.pool]`:
+
+```bash
+kubectl -n tracon-node exec deploy/tracon-node -c node -- \
+  cp /state/config/tracon/node.toml /state/config/tracon/node.toml.bak-sandbox-pool
+kubectl -n tracon-node exec -i deploy/tracon-node -c node -- \
+  sh -c 'cat >> /state/config/tracon/node.toml' <<'TOML'
+
+[runtime.kubernetes.resources.command]
+memory_request = "4Gi"
+memory_limit = "6Gi"
+
+[runtime.kubernetes.pool]
+node_selector = { workload = "tracon-sandbox" }
+tolerations = [{ key = "workload", value = "tracon-sandbox", effect = "NoSchedule" }]
+scale_up_grace_secs = 600
+
+[digitalocean]
+credential = "do"
+registry = "registry.digitalocean.com/cosmicspork"
+relay = true
+listen = "127.0.0.1:8443"
+limit = 2
+
+[placement]
+digitalocean = "overflow"
+
+[[placement.repo]]
+path = "github.com/hounddogreading/hounddogreading"
+client = true
+TOML
+kubectl -n tracon-node rollout restart deploy/tracon-node
+```
+
+Appending works because none of those tables is in the live file yet (check first with `grep -n '^\[' /state/config/tracon/node.toml`; edit a table that is there in place instead). After the restart, the node's `runtime` check (Settings, or `tracon check-boundary` in the pod) should name the pool, and a session or check should bring up a `tracon-sandbox` node.
+
 ### Monitoring
 Metrics history for sizing decisions: how much each pod uses against what it reserves, how heavy tracon's harness pods are, and how often and how long the Minecraft server is awake. metrics-server only answers `kubectl top` for the current moment; this keeps 90 days.
 
-- **VictoriaMetrics** (single-node) scrapes everything itself every 30 s and stores it on a 5Gi volume: each kubelet's cAdvisor (per-container CPU, memory, network, disk, trimmed to the series worth keeping) and resource endpoint (node totals), kube-state-metrics, and mc-monitor. Node discovery includes the `minecraft-premium` pool's node whenever it exists. It scrapes kubelets directly with only `nodes/metrics`, not through the API server's node proxy, which would need `nodes/proxy`.
+- **VictoriaMetrics** (single-node) scrapes everything itself every 30 s and stores it on a 5Gi volume: each kubelet's cAdvisor (per-container CPU, memory, network, disk, trimmed to the series worth keeping) and resource endpoint (node totals), kube-state-metrics, and mc-monitor. Node discovery includes the `minecraft-premium` and `tracon-sandbox` pools' nodes whenever they exist. It scrapes kubelets directly with only `nodes/metrics`, not through the API server's node proxy, which would need `nodes/proxy`.
 - **kube-state-metrics** turns object state into series: requests and limits, restarts, phases, replica counts, and pod labels (`kube_pod_labels`, limited to `app` and the `tracon.dev/*` keys).
 - **mc-monitor** lives in the `minecraft` namespace (see above).
 
@@ -255,7 +310,7 @@ Things learned in that drill:
 If the cluster needs to be rebuilt from scratch:
 
 1. **Provision a new DOKS cluster** and recreate what lives on the DigitalOcean side:
-   - A `general` pool (`s-4vcpu-8gb`, 1 node) and a `minecraft-premium` pool (`s-4vcpu-8gb-amd`, falling back to `-intel` or plain `s-4vcpu-8gb` if a region lacks it; autoscaled 0 to 1, label and taint `workload=minecraft`, `NoSchedule`).
+   - A `general` pool (`s-4vcpu-8gb`, 1 node), a `minecraft-premium` pool (`s-4vcpu-8gb-amd`, falling back to `-intel` or plain `s-4vcpu-8gb` if a region lacks it; autoscaled 0 to 1, label and taint `workload=minecraft`, `NoSchedule`) and a `tracon-sandbox` pool (`s-4vcpu-8gb`, autoscaled 0 to 1, label and taint `workload=tracon-sandbox`, `NoSchedule`; see [tracon sandbox pool](#tracon-sandbox-pool)).
    - Auto-upgrade off; upgrades are done by hand so a node replacement never surprises a single-node cluster.
    - The control plane firewall, enabled with an empty allowlist. The `k8s` tunnel route needs no change, but each workstation's kubeconfig does: rerun the `set-cluster` command in [Kubernetes API](#kubernetes-api) with the new cluster's hostname. Until Flux has the tunnel running, `kubectl` needs a temporary allowlist entry.
    - The DOCR integration (`doctl kubernetes cluster registry add`), which puts the `cosmicspork` pull secret in every namespace. tracon-node's harness images come from the registry.

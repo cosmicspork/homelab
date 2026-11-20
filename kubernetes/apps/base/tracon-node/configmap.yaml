@@ -21,11 +21,22 @@ data:
     registry = "registry.digitalocean.com/cosmicspork"
     docker_config = "/etc/tracon/registry"
 
+    # Checks and preparations: a tracon `just check` peaks around 3.9 GiB, so
+    # each asks for 4Gi and may burst to 6Gi. They run on the tracon-sandbox
+    # pool (below), not beside immich and the rest on the general node.
     [runtime.kubernetes.resources.command]
-    # The default 2Gi request does not fit beside everything else on the one
-    # 8 GiB node; captured pods are pinned to it, so they are refused rather
-    # than left pending. The 4Gi limit still lets a test suite burst.
-    memory_request = "1Gi"
+    memory_request = "4Gi"
+    memory_limit = "6Gi"
+
+    # Every sandbox pod (sessions, checks, preparations) runs on the
+    # tracon-sandbox node pool, which autoscales 0-1 (README, "tracon
+    # sandbox pool"). While it has no node the node waits for the autoscaler
+    # to add one, up to scale_up_grace_secs; once it is full, sessions
+    # overflow to DigitalOcean ([placement] below) and checks queue.
+    [runtime.kubernetes.pool]
+    node_selector = { workload = "tracon-sandbox" }
+    tolerations = [{ key = "workload", value = "tracon-sandbox", effect = "NoSchedule" }]
+    scale_up_grace_secs = 600
 
     [gateway]
     harness_listen = "0.0.0.0:7421"
@@ -59,6 +70,8 @@ data:
     [placement]
     digitalocean = "overflow"
 
+    # Client work never runs on DigitalOcean: when the pool is full its
+    # sessions are refused and its checks wait in line.
     [[placement.repo]]
     path = "github.com/hounddogreading/hounddogreading"
     client = true
