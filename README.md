@@ -102,41 +102,24 @@ doctl kubernetes cluster node-pool create 5c9b05e1-8b57-4d2e-b07f-e71ce09be34e \
 
 `--count 1` boots one node now, which the autoscaler removes once nothing runs on it; DigitalOcean bills it only while it exists.
 
-**The seed is not the live config.** The `seed-config` init container copies `configmap.yaml` onto the state volume only when `/state/config/tracon/node.toml` is missing; after that the node owns the file (enrolment, providers, `[[repo]]` entries, settings edits all write to it). Don't move it aside to reseed: that would lose all of those. To bring the live file up to the seed's sandbox settings, once the deployed tracon-node release supports `[runtime.kubernetes.pool]`:
+**The seed is not the live config.** The `seed-config` init container copies `configmap.yaml` onto the state volume only when `/state/config/tracon/node.toml` is missing; after that the node owns the file (enrolment, providers, `[[repo]]` entries, settings edits all write to it). Don't move it aside to reseed: that would lose all of those.
+
+Change the live file through the node's own config API, not with `kubectl exec`: the node's Settings page, or `PATCH /api/config` over a port-forward, which the node treats as a request at the node (no passkey). An edit names the hash it was decided against, is loaded and checked before it is written, and is recorded in the config audit log; if a restart then can't start on the file, the node puts `node.toml.last-good` back after a few failed starts.
 
 ```bash
-kubectl -n tracon-node exec deploy/tracon-node -c node -- \
-  cp /state/config/tracon/node.toml /state/config/tracon/node.toml.bak-sandbox-pool
-kubectl -n tracon-node exec -i deploy/tracon-node -c node -- \
-  sh -c 'cat >> /state/config/tracon/node.toml' <<'TOML'
-
-[runtime.kubernetes.resources.command]
-memory_request = "4Gi"
-memory_limit = "6Gi"
-
-[runtime.kubernetes.pool]
-node_selector = { workload = "tracon-sandbox" }
-tolerations = [{ key = "workload", value = "tracon-sandbox", effect = "NoSchedule" }]
-scale_up_grace_secs = 600
-
-[digitalocean]
-credential = "do"
-registry = "registry.digitalocean.com/cosmicspork"
-relay = true
-listen = "127.0.0.1:8443"
-limit = 2
-
-[placement]
-digitalocean = "overflow"
-
-[[placement.repo]]
-path = "github.com/hounddogreading/hounddogreading"
-client = true
-TOML
-kubectl -n tracon-node rollout restart deploy/tracon-node
+kubectl -n tracon-node port-forward deploy/tracon-node 17420:7420 &
+hash=$(curl -s http://127.0.0.1:17420/api/config | jq -r .hash)
+curl -s -X PATCH http://127.0.0.1:17420/api/config \
+  -H 'Content-Type: application/json' -d '{
+    "expected_hash": "'"$hash"'",
+    "ops": [
+      {"op": "set", "key": "runtime.kubernetes.resources.command",
+       "value": {"memory_request": "4Gi", "memory_limit": "6Gi"}}
+    ]
+  }'
 ```
 
-Appending works because none of those tables is in the live file yet (check first with `grep -n '^\[' /state/config/tracon/node.toml`; edit a table that is there in place instead). After the restart, the node's `runtime` check (Settings, or `tracon check-boundary` in the pod) should name the pool, and a session or check should bring up a `tracon-sandbox` node.
+Operations are `set`, `remove`, `insert` and `reorder`, on dotted `node.toml` paths (`repo[2].egress`). The answer lists the keys it changed and whether they wait for a restart (`restart_required`); the pool, resources and provider models do. The sandbox pool and check resources were added to the live file this way on 2026-11-21 and apply at the node's next restart. After it, the node's `runtime` check (Settings, or `tracon check-boundary` in the pod) should name the pool, and a session or check should bring up a `tracon-sandbox` node.
 
 ### Monitoring
 Metrics history for sizing decisions: how much each pod uses against what it reserves, how heavy tracon's harness pods are, and how often and how long the Minecraft server is awake. metrics-server only answers `kubectl top` for the current moment; this keeps 90 days.
