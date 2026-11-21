@@ -86,16 +86,16 @@ Server console commands (game rules, Chunky, `whitelist add`) go through `kubect
 ### tracon sandbox pool
 tracon-node runs every sandbox pod (agent sessions, review checks, repository preparations) on its own node pool, `tracon-sandbox`, rather than beside immich and the rest on the general node, where a `just check` peaking at about 3.9 GiB was evicted for memory pressure.
 
-- **The pool**: `tracon-sandbox`, `s-4vcpu-8gb`, autoscaled 0-1, label and taint `workload=tracon-sandbox` (`NoSchedule`), so nothing else lands there. Its node exists only while a sandbox pod runs; the autoscaler removes it after about ten idle minutes. Every running session holds it up, as a check does.
+- **The pool**: `tracon-sandbox`, `s-4vcpu-16gb-amd`, autoscaled 0-1, label and taint `workload=tracon-sandbox` (`NoSchedule`), so nothing else lands there. Its node exists only while a sandbox pod runs; the autoscaler removes it after about ten idle minutes. Every running session holds it up, as a check does.
 - **How the node uses it**: the seed config's `[runtime.kubernetes.pool]` gives sandbox pods the pool's node selector and toleration (the node adds `kubernetes.io/arch` for the base it pinned). While the pool has no node, placement counts it as room to wait for; a pod the autoscaler is adding a node for (its `TriggeredScaleUp` event) waits up to `scale_up_grace_secs` (600) for it, so a cold start costs the node's boot and the image pull, a few minutes. Once the pool's one node is full, a pod the autoscaler won't place (`NotTriggerScaleUp`) is given up after the usual minute: sessions overflow to DigitalOcean (`[placement] digitalocean = "overflow"`), except hounddogreading's (`client = true`), and checks wait in the node's check queue.
-- **Sizing**: `[runtime.kubernetes.resources.command]` asks 4Gi and allows 6Gi per check. The node's allocatable memory is about 6.3 GiB, so one session (1400Mi in the live config) and one check fit together.
+- **Sizing**: `[runtime.kubernetes.resources.command]` asks 4Gi and allows 6Gi per check. The node has 16 GiB, of which about 13.3 GiB is allocatable (3890m CPU), so one session (1400Mi in the live config) and one check fit together with room to spare, even with the check at its 6Gi limit.
 - **Rights**: `role.yaml` lets the node list events in its namespace (the autoscaler's signals) and `clusterrole-capacity.yaml` lets it read nodes and pods cluster-wide (the pool's room and its nodes' architecture).
 
 Create the pool once (needs a `doctl` authenticated to the account; the cluster id is the homelab cluster's):
 
 ```bash
 doctl kubernetes cluster node-pool create 5c9b05e1-8b57-4d2e-b07f-e71ce09be34e \
-  --name tracon-sandbox --size s-4vcpu-8gb \
+  --name tracon-sandbox --size s-4vcpu-16gb-amd \
   --count 1 --auto-scale --min-nodes 0 --max-nodes 1 \
   --label workload=tracon-sandbox --taint workload=tracon-sandbox:NoSchedule
 ```
@@ -310,7 +310,7 @@ Things learned in that drill:
 If the cluster needs to be rebuilt from scratch:
 
 1. **Provision a new DOKS cluster** and recreate what lives on the DigitalOcean side:
-   - A `general` pool (`s-4vcpu-8gb`, 1 node), a `minecraft-premium` pool (`s-4vcpu-8gb-amd`, falling back to `-intel` or plain `s-4vcpu-8gb` if a region lacks it; autoscaled 0 to 1, label and taint `workload=minecraft`, `NoSchedule`) and a `tracon-sandbox` pool (`s-4vcpu-8gb`, autoscaled 0 to 1, label and taint `workload=tracon-sandbox`, `NoSchedule`; see [tracon sandbox pool](#tracon-sandbox-pool)).
+   - A `general` pool (`s-4vcpu-8gb`, 1 node), a `minecraft-premium` pool (`s-4vcpu-8gb-amd`, falling back to `-intel` or plain `s-4vcpu-8gb` if a region lacks it; autoscaled 0 to 1, label and taint `workload=minecraft`, `NoSchedule`) and a `tracon-sandbox` pool (`s-4vcpu-16gb-amd`, autoscaled 0 to 1, label and taint `workload=tracon-sandbox`, `NoSchedule`; see [tracon sandbox pool](#tracon-sandbox-pool)).
    - Auto-upgrade off; upgrades are done by hand so a node replacement never surprises a single-node cluster.
    - The control plane firewall, enabled with an empty allowlist. The `k8s` tunnel route needs no change, but each workstation's kubeconfig does: rerun the `set-cluster` command in [Kubernetes API](#kubernetes-api) with the new cluster's hostname. Until Flux has the tunnel running, `kubectl` needs a temporary allowlist entry.
    - The DOCR integration (`doctl kubernetes cluster registry add`), which puts the `cosmicspork` pull secret in every namespace. tracon-node's harness images come from the registry.
