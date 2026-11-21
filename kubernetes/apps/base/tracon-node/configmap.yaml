@@ -13,6 +13,9 @@ data:
     [runtime]
     kind = "kubernetes"
 
+    [runtime.kubernetes]
+    internal_cidrs = ["167.71.5.74/32"]
+
     # Builds repository images on buildkitd (tracon-build) and pushes them to
     # DOCR.
     [runtime.kubernetes.builder]
@@ -40,9 +43,18 @@ data:
 
     [gateway]
     harness_listen = "0.0.0.0:7421"
+    allow_hosts = [
+      '^api\.anthropic\.com$',
+      '^api\.openai\.com$',
+      '^chatgpt\.com$',
+      '^auth\.openai\.com$',
+      '^platform\.claude\.com$',
+      '^claude\.ai$',
+    ]
 
     [session]
     worktree_root = "/state/work"
+    budget_tokens = 2000000
 
     # The models each harness is offered. Declared here, and kept identical
     # to the local node's, so a reseed doesn't fall back to the node's
@@ -113,6 +125,7 @@ data:
     # The public name, not the cluster service: DigitalOcean sandboxes reach
     # this node through the hub's relay at this URL's host.
     hub_url = "https://tracon-hub.0x69.xyz"
+    admin_peers = ["2b310f36c18605ac9ab367ec3abe4fe9aaa6aee04e64db98b0ea364e5e6b3013"]
 
     # DigitalOcean: this node builds templates on buildkitd for itself and
     # for peers that ask (bazzite builds its own too), and places a session
@@ -130,9 +143,126 @@ data:
 
     [placement]
     digitalocean = "overflow"
+    local_limit = 1
 
     # Client work never runs on DigitalOcean: when the pool is full its
     # sessions are refused and its checks wait in line.
     [[placement.repo]]
     path = "github.com/hounddogreading/hounddogreading"
     client = true
+
+    # tracon sessions are placed only where the sandbox is a microVM.
+    [[placement.repo]]
+    path = "github.com/cosmicspork/tracon"
+
+    [placement.repo.require]
+    tier = ["microvm"]
+
+    # The repositories this node keeps an environment for: how each image is
+    # built and prepared, and the checks a review runs.
+    [[repo]]
+    path = "github.com/hounddogreading/hounddogreading"
+    build = [
+      "apt-get update && apt-get install -y --no-install-recommends php8.5-exif php8.5-sockets php8.5-imagick php8.5-pcov librsvg2-bin && rm -rf /var/lib/apt/lists/*",
+      "cd /tmp && npx --yes playwright@1.61.1 install-deps chromium && PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright npx --yes playwright@1.61.1 install chromium && chmod -R a+rX /opt/ms-playwright && rm -rf /root/.npm /var/lib/apt/lists/*",
+    ]
+    prepare = [
+      "composer install --no-interaction --prefer-dist --no-scripts",
+      "npm ci --ignore-scripts",
+      "npm run build",
+      "cp -n .env.example .env",
+      "php artisan key:generate",
+    ]
+    prepare_credentials = ["nova"]
+    checks = [
+      "./vendor/bin/pint --test",
+      "./vendor/bin/phpstan analyse --memory-limit=1G",
+      "npm run format:check",
+      "npm run lint",
+      "npm run typecheck",
+      "npm run test:coverage",
+      "php artisan test --parallel --testsuite=Unit,Feature",
+      "PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright php artisan test --testsuite=Browser",
+    ]
+    egress = [
+      "packagist",
+      "npm",
+      "nova.laravel.com",
+      "fls-a3093975-8443-4c2e-a646-0501a78a92e9.367be3a2035528943240074d0096e0cd.r2.cloudflarestorage.com",
+      "apt",
+      "cdn.playwright.dev",
+      "playwright.download.prss.microsoft.com",
+      "playwright.azureedge.net",
+      "storage.googleapis.com",
+    ]
+    session_egress = true
+    timeout_secs = 1800
+
+    [[repo]]
+    path = "github.com/cosmicspork/tracon"
+    build = [
+      "apt-get update && apt-get install -y --no-install-recommends libssl-dev perl just && rm -rf /var/lib/apt/lists/* && just --version",
+      'curl -fsSL -o /tmp/rustup-init "https://static.rust-lang.org/rustup/dist/$(uname -m)-unknown-linux-gnu/rustup-init" && chmod +x /tmp/rustup-init && CARGO_HOME=/usr/local/cargo RUSTUP_HOME=/usr/local/rustup /tmp/rustup-init -y --no-modify-path --profile minimal --default-toolchain 1.98.1 -c clippy -c rustfmt && rm /tmp/rustup-init && ln -s /usr/local/rustup/toolchains/1.98.1-*/bin/* /usr/local/bin/',
+      'case "$(uname -m)" in aarch64) a=aarch64 d=54328bbc2d9c8e0c9f892c544d66c57a83b84139e34909e5ee81758f1ac8fda7 ;; x86_64) a=x64 d=36368faef7527875d5ffa52e53cd48021741f2a83eb6208a8dd64068d422a913 ;; *) exit 1 ;; esac && curl -fsSL -o /tmp/bun.zip "https://github.com/oven-sh/bun/releases/download/bun-v1.4.2/bun-linux-$a.zip" && echo "$d  /tmp/bun.zip" | sha256sum -c - && unzip -q /tmp/bun.zip -d /tmp && install -m 0755 "/tmp/bun-linux-$a/bun" /usr/local/bin/bun && rm -rf /tmp/bun.zip "/tmp/bun-linux-$a"',
+    ]
+    prepare = ["cargo fetch --locked", "cd spa && bun install --frozen-lockfile"]
+    checks = ["just check"]
+    egress = [
+      "apt",
+      "crates",
+      "npm",
+      "github",
+      "static.rust-lang.org",
+      "release-assets.githubusercontent.com",
+      "objects.githubusercontent.com",
+      "sh.rustup.rs",
+      "raw.githubusercontent.com",
+    ]
+    session_egress = true
+    timeout_secs = 2400
+
+    [[repo]]
+    path = "github.com/cosmicspork/jira-review"
+    build = [
+      'curl -fsSL -o /tmp/rustup-init "https://static.rust-lang.org/rustup/dist/$(uname -m)-unknown-linux-gnu/rustup-init" && chmod +x /tmp/rustup-init && CARGO_HOME=/usr/local/cargo RUSTUP_HOME=/usr/local/rustup /tmp/rustup-init -y --no-modify-path --profile minimal --default-toolchain stable -c clippy -c rustfmt && rm /tmp/rustup-init && ln -s /usr/local/rustup/toolchains/stable-*/bin/* /usr/local/bin/',
+    ]
+    prepare = [
+      "if [ -f Cargo.lock ]; then cargo fetch --locked; else cargo --version; fi",
+    ]
+    checks = [
+      "cargo fmt --check",
+      "cargo clippy --all-targets -- -D warnings",
+      "cargo test",
+    ]
+    egress = [
+      "crates",
+      "github",
+      "static.rust-lang.org",
+      "release-assets.githubusercontent.com",
+      "objects.githubusercontent.com",
+    ]
+    session_egress = true
+    timeout_secs = 1800
+
+    [[repo]]
+    path = "github.com/cosmicspork/sql-review"
+    build = [
+      'curl -fsSL -o /tmp/rustup-init "https://static.rust-lang.org/rustup/dist/$(uname -m)-unknown-linux-gnu/rustup-init" && chmod +x /tmp/rustup-init && CARGO_HOME=/usr/local/cargo RUSTUP_HOME=/usr/local/rustup /tmp/rustup-init -y --no-modify-path --profile minimal --default-toolchain stable -c clippy -c rustfmt && rm /tmp/rustup-init && ln -s /usr/local/rustup/toolchains/stable-*/bin/* /usr/local/bin/',
+    ]
+    prepare = [
+      "if [ -f Cargo.lock ]; then cargo fetch --locked; else cargo --version; fi",
+    ]
+    checks = [
+      "cargo fmt --check",
+      "cargo clippy --all-targets -- -D warnings",
+      "cargo test",
+    ]
+    egress = [
+      "crates",
+      "github",
+      "static.rust-lang.org",
+      "release-assets.githubusercontent.com",
+      "objects.githubusercontent.com",
+    ]
+    session_egress = true
+    timeout_secs = 1800
