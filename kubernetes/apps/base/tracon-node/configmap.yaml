@@ -44,9 +44,70 @@ data:
     [session]
     worktree_root = "/state/work"
 
-    [consulta]
-    command = "uv"
-    args = ["run", "--project", "/opt/consulta", "consulta"]
+    # The models each harness is offered. Declared here, and kept identical
+    # to the local node's, so a reseed doesn't fall back to the node's
+    # built-in defaults, which trail the current generation.
+    [providers.anthropic]
+    credential = "anthropic"
+    login = "anthropic"
+    shape = "anthropic"
+    upstream = "https://api.anthropic.com"
+
+    [[providers.anthropic.models]]
+    attachment = true
+    context = 1000000
+    id = "claude-fable-5-2"
+    name = "Claude Fable 5.2"
+    output = 128000
+    reasoning = true
+    parallel_tools = true
+    reasoning_effort = "high"
+
+    [[providers.anthropic.models]]
+    attachment = true
+    context = 1000000
+    id = "claude-opus-5-5"
+    name = "Claude Opus 5.5"
+    output = 128000
+    reasoning = true
+    parallel_tools = true
+    reasoning_effort = "high"
+
+    [[providers.anthropic.models]]
+    attachment = true
+    context = 1000000
+    id = "claude-sonnet-5-5"
+    name = "Claude Sonnet 5.5"
+    output = 128000
+    reasoning = true
+    parallel_tools = true
+    reasoning_effort = "high"
+
+    [[providers.anthropic.models]]
+    attachment = true
+    context = 1000000
+    id = "claude-haiku-5-5"
+    name = "Claude Haiku 5.5"
+    output = 128000
+    reasoning = true
+    parallel_tools = true
+    reasoning_effort = "high"
+
+    [providers.openai-codex]
+    credential = "openai-codex"
+    login = "openai"
+    shape = "openai-codex"
+    upstream = "https://chatgpt.com/backend-api"
+
+    [[providers.openai-codex.models]]
+    attachment = true
+    context = 400000
+    id = "gpt-6-luna"
+    name = "GPT-6 Luna"
+    output = 128000
+    reasoning = true
+    parallel_tools = true
+    reasoning_effort = "high"
 
     [mesh]
     # The public name, not the cluster service: DigitalOcean sandboxes reach
