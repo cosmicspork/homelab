@@ -158,6 +158,21 @@ data:
     [placement.repo.require]
     tier = ["microvm"]
 
+    # Plugin tools that run without a card. hora's drafts and proposals are
+    # its own review; hoja's own type gates turn agent writes into hoja cards;
+    # workboard's reads only (its writes are consequential and always asked).
+    [[plugin]]
+    name = "hora"
+    allow = ["time_*"]
+
+    [[plugin]]
+    name = "hoja"
+    allow = ["types", "records", "record_show", "record_create", "record_edit", "documents", "document_show", "document_create", "document_edit", "document_select", "document_build", "card_status"]
+
+    [[plugin]]
+    name = "workboard"
+    allow = ["board", "task", "projects"]
+
     # The repositories this node keeps an environment for: how each image is
     # built and prepared, and the checks a review runs.
     [[repo]]
