@@ -41,8 +41,10 @@ spec:
           ports:
             - containerPort: 8080
           env:
+            # tracon_hub is the binary's own target (its startup lines); hub
+            # alone filters them out.
             - name: RUST_LOG
-              value: hub=info,tower_http=info
+              value: tracon_hub=info,hub=info,tower_http=info
             # Baked into the image already; set explicitly so the manifest
             # documents the contract.
             - name: TRACON_HUB_DATA_DIR
@@ -74,9 +76,13 @@ spec:
           resources:
             requests:
               cpu: 25m
-              memory: 32Mi
+              memory: 64Mi
+            # A /v0/frames page holds up to 200 envelopes in memory several
+            # times over, and envelopes reach ~2 MB. At 128Mi, nodes pulling
+            # concurrently OOM-killed the hub on every start (2026-11-23).
+            # Lower this once the hub bounds pages by bytes.
             limits:
-              memory: 128Mi
+              memory: 512Mi
           readinessProbe:
             httpGet:
               path: /health
