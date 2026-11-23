@@ -1,0 +1,8 @@
+# GitHub's language bar ignores YAML by default, so the one Python helper
+# (minecraft/wake.py) made this repo show up as Python. Count the manifests.
+*.yaml linguist-detectable
+*.yml  linguist-detectable
+
+# SOPS-encrypted secrets are mostly ciphertext: leave them out of language stats
+# and collapse them in GitHub diffs.
+*secret.yaml linguist-generated
