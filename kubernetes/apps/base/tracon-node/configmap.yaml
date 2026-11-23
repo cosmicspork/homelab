@@ -175,16 +175,22 @@ data:
     # Plugin tools that run without a card. hora's drafts and proposals are
     # its own review; hoja's own type gates turn agent writes into hoja cards;
     # workboard's reads only (its writes are consequential and always asked).
+    # Offered on no channel for now: their data stays on another node until
+    # a plugin's page can be opened from a node other than its own. Then the
+    # data moves here and channels becomes ["personal"].
     [[plugin]]
     name = "hora"
+    channels = []
     allow = ["time_*"]
 
     [[plugin]]
     name = "hoja"
+    channels = []
     allow = ["types", "records", "record_show", "record_create", "record_edit", "documents", "document_show", "document_create", "document_edit", "document_select", "document_build", "card_status"]
 
     [[plugin]]
     name = "workboard"
+    channels = []
     allow = ["board", "task", "projects"]
 
     # The repositories this node keeps an environment for: how each image is
