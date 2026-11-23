@@ -10,6 +10,16 @@ data:
   node.toml: |
     node_name = "homelab"
 
+    # The name cloudflared publishes this node under. Passkeys and every admin
+    # action from off the node (the phone, a peer) need it; without it they
+    # are refused. cloudflared runs in the pod network (10.111.0.0/16), so its
+    # X-Forwarded-For is believed when the node tells callers apart.
+    # [notify] contact is set on the volume only: it is an email address and
+    # this repository is public. Unset, push falls back to public_origin.
+    [auth]
+    public_origin = "https://tracon-node.0x69.xyz"
+    trusted_proxies = ["10.111.0.0/16"]
+
     [runtime]
     kind = "kubernetes"
 
@@ -30,6 +40,9 @@ data:
     [runtime.kubernetes.resources.command]
     memory_request = "4Gi"
     memory_limit = "6Gi"
+
+    [runtime.kubernetes.resources.session]
+    memory_request = "1400Mi"
 
     # Every sandbox pod (sessions, checks, preparations) runs on the
     # tracon-sandbox node pool, which autoscales 0-1 (README, "tracon
@@ -140,6 +153,7 @@ data:
     relay = true
     listen = "127.0.0.1:8443"
     limit = 2
+    size = "mars-4vcpu-8gb"
 
     [placement]
     digitalocean = "overflow"
