@@ -29,6 +29,12 @@ GitOps-managed Kubernetes cluster running on DigitalOcean. Flux watches this rep
 | Minecraft (Hearth & Hollow) | `mc.0x69.xyz` (game), `mc-wake.0x69.xyz` | Raw StatefulSet + PVC on a 0-1 node pool, mc-router, wake page |
 | external-dns | n/a | Helm chart (kubernetes-sigs), Cloudflare provider |
 | Monitoring | `metrics.0x69.xyz` | VictoriaMetrics single-node + PVC, kube-state-metrics Helm chart |
+| pager relay | `pager.0x69.xyz` | Raw Deployment + PVC |
+| svastha relay | `svastha-relay.0x69.xyz` | Raw Deployment + PVC |
+| svastha node | n/a | Raw Deployment + PVC (identity seed); a trusted processing client for a vault, reaching no hostname of its own |
+| tracon hub | `tracon-hub.0x69.xyz` | Raw Deployment + PVC |
+| tracon node | `tracon-node.0x69.xyz` | Raw Deployment + PVC, RBAC for its sandbox pool (see [tracon sandbox pool](#tracon-sandbox-pool)) |
+| tracon-build | n/a | Rootless buildkitd StatefulSet behind mTLS, for the tracon node's image builds (see [buildkit mTLS certificates](#buildkit-mtls-certificates)) |
 
 ### cloudflared
 The cluster's only way in. Two replicas hold outbound connections to Cloudflare for the `homelab` tunnel, and `kubernetes/apps/production/cloudflared/config.yaml` maps each public hostname to its Service (generated into a hash-suffixed ConfigMap, so a change rolls the pods). The tunnel credentials are the SOPS secret beside the Deployment. Access applications and service tokens live in the Zero Trust dashboard, not in this repo.
@@ -173,6 +179,12 @@ kubernetes/
       minecraft/             # Hearth & Hollow server, mc-router, the wake page and mc-monitor
       external-dns/          # Cloudflare DNS records for NodePort Services
       monitoring/            # VictoriaMetrics, its scrape config, kube-state-metrics
+      pager/                 # pager's relay
+      svastha-relay/
+      svastha-node/
+      tracon-hub/            # namespace tracon
+      tracon-node/           # the node and its sandbox pool's RBAC
+      tracon-build/          # rootless buildkitd
     production/              # Production overlays and environment-specific resources
       cloudflared/           # Tunnel config (config.yaml): public hostname -> Service
       immich/
@@ -180,6 +192,12 @@ kubernetes/
       minecraft/
       external-dns/
       monitoring/
+      pager/
+      svastha-relay/
+      svastha-node/
+      tracon-hub/
+      tracon-node/
+      tracon-build/
 scripts/
   buildkit-pki.sh            # Issues tracon-build's mTLS certificates as SOPS secrets
   validate.sh                # Renders the manifests and runs the checks CI requires
