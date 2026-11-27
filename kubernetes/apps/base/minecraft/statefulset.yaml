@@ -99,7 +99,7 @@ spec:
               value: "1.21.1"
             # Must match pack.toml at PACK_VERSION; a pack release can move it.
             - name: NEOFORGE_VERSION
-              value: "21.1.259"
+              value: "21.1.267"
             # 4G heap measured at ~5.2G resident with metaspace and off-heap.
             - name: INIT_MEMORY
               value: 4G
